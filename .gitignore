@@ -1,0 +1,17 @@
+# Project-local Codex/agent instructions and skills
+AGENTS.md
+skills/
+
+# Local OS/editor/cache files
+.DS_Store
+**/.DS_Store
+__pycache__/
+*.py[cod]
+
+# Local model weights and generated runtime artifacts
+models/
+*.log
+
+# Local benchmark/run outputs
+chapters/**/demo/*result*.json
+chapters/**/demo/outputs/

@@ -18,7 +18,7 @@ Qwen/Qwen2.5-0.5B
 如果模型已经在 Hugging Face cache 中，或当前环境可以直接解析该模型 id：
 
 ```bash
-python3 book/chapters/chapter01/demo/start_vllm.py \
+python3 chapter01/demo/start_vllm.py \
   --model Qwen/Qwen2.5-0.5B \
   --served-model-name Qwen/Qwen2.5-0.5B \
   --host 0.0.0.0 \
@@ -28,7 +28,7 @@ python3 book/chapters/chapter01/demo/start_vllm.py \
 如果模型已经在本地目录，例如 GX10 上的 `/home/admin/models/Qwen2.5-0.5B`：
 
 ```bash
-python3 book/chapters/chapter01/demo/start_vllm.py \
+python3 chapter01/demo/start_vllm.py \
   --model /home/admin/models/Qwen2.5-0.5B \
   --served-model-name Qwen/Qwen2.5-0.5B \
   --host 0.0.0.0 \
@@ -58,7 +58,7 @@ curl http://127.0.0.1:8000/v1/models
 从课程根目录运行：
 
 ```bash
-python3 book/chapters/chapter01/demo/demo.py \
+python3 chapter01/demo/demo.py \
   --base-url http://127.0.0.1:8000/v1 \
   --model Qwen/Qwen2.5-0.5B \
   --prompt "请解释一次 LLM 在线推理请求从 Prompt 到完整回答的过程。" \
@@ -84,6 +84,6 @@ python3 book/chapters/chapter01/demo/demo.py \
 单元测试只验证命令构造、请求构造和客户端计算逻辑，不需要启动 vLLM：
 
 ```bash
-cd book/chapters/chapter01/demo
+cd chapter01/demo
 python3 -m unittest test_demo.py test_start_vllm.py
 ```

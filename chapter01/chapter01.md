@@ -12,7 +12,7 @@
 - Prefill 和 Decode 分别做什么？
 - 为什么首 token 慢和输出卡顿不是同一个问题？
 - KV Cache 为什么是推理性能里的关键对象？
-- 看到一个性能现象时，应该先观察哪些指标？
+- 看到一个性能现象时，应该先定位到哪个阶段？
 
 可以先把一次请求想成下面这条链路：
 
@@ -59,7 +59,7 @@
   -> 最后选择优化手段
 ```
 
-第一章要解决的就是“定位阶段”这件事：先把一次请求拆成 Prefill、Decode、KV Cache、调度和返回链路，再说明每个阶段应该优先观察哪些指标。指标本身会在后续章节展开，本章只先建立它们和请求阶段之间的对应关系。
+第一章要解决的就是“定位阶段”这件事：先把一次请求拆成 Prefill、Decode、KV Cache、调度和返回链路，再说明常见性能现象更可能落在哪些阶段。指标本身会在后续章节展开，本章只先建立它们和请求阶段之间的对应关系。
 
 ![LLM Serving 整体架构](figures/fig01-02_serving_architecture.svg)
 
@@ -189,7 +189,7 @@ Decode 常见瓶颈是 memory bound。原因是每一步新增计算不多，但
 
 - ITL 是否稳定。
 - KV Cache 读取是否成为瓶颈。
-- batch size 是否太小或太大。
+- 调度和 batching 是否影响 Decode 节奏。
 - 请求长度差异是否导致调度效率下降。
 - 采样、后处理或网络发送是否拖慢。
 
@@ -237,7 +237,7 @@ KV Cache 的显存占用主要受这些因素影响：
 KV Cache 显存 ~= 层数 x token 数 x KV hidden 维度 x 2(K 和 V) x dtype bytes
 ```
 
-这个公式不是生产系统里的精确内存模型，但足够帮助我们建立方向感：上下文越长、输出越长、并发越高，KV Cache 越容易成为显存容量和内存带宽压力的来源。
+这个公式不是生产系统里的精确内存模型，实际实现还会受到 block size、对齐、分页管理和运行时预留显存影响。但它足够帮助我们建立方向感：上下文越长、输出越长、并发越高，KV Cache 越容易成为显存容量和内存带宽压力的来源。
 
 后续课程中的 PagedAttention、Prefix Cache、KV Quantization，本质上都围绕 KV Cache 展开。
 
@@ -245,9 +245,13 @@ KV Cache 显存 ~= 层数 x token 数 x KV hidden 维度 x 2(K 和 V) x dtype by
 
 图1-7：GPU Memory & Compute Lifecycle。
 
-## 1.7 三个核心指标：TTFT、ITL、TPS
+从 GPU 视角看，一次请求不是一段均匀的计算。Prefill 更像一段集中处理完整输入的大块计算；Decode 更像很多次小步循环，每一步都要读历史 KV Cache，再追加新的 K/V。GPU 显存里会同时承载模型权重、运行时工作区和不断增长的 KV Cache；GPU 计算单元和 HBM 带宽在不同阶段承受的压力也不一样。
 
-第一章先掌握三个指标就够了。
+这也是为什么后面做 profiling 时，不能只问“GPU 忙不忙”，还要问“GPU 正在忙哪个阶段、忙的是计算还是访存”。
+
+## 1.7 阶段定位中的三个线索：TTFT、ITL、TPS
+
+第一章先把三个指标当作阶段定位线索，不展开完整指标体系。
 
 TTFT 是 Time To First Token。它回答的问题是：用户要等多久才能看到第一个输出 token？
 
@@ -269,7 +273,7 @@ TPS 主要对应吞吐，但不能单独代表用户体验。更大的 batch 可
 | ITL | 输出是否顺滑 | Decode、KV Cache、调度、采样 |
 | TPS | 总吞吐有多高 | Batch、并发、调度、GPU 利用率 |
 
-优化前先确认目标。如果目标是交互式聊天，TTFT 和 ITL 很重要；如果目标是离线批处理，TPS 可能更重要。
+优化前先确认目标。如果目标是交互式聊天，TTFT 和 ITL 很重要；如果目标是离线批处理，TPS 可能更重要。第 2 章会正式展开这些指标的定义、统计方式和实验方法。
 
 ![Compute Bound vs Memory Bound](figures/fig01-08_compute_vs_memory.svg)
 
@@ -277,7 +281,7 @@ TPS 主要对应吞吐，但不能单独代表用户体验。更大的 batch 可
 
 ## 1.8 Compute Bound 与 Memory Bound
 
-性能优化时，经常会听到两个词：compute bound 和 memory bound。
+性能优化时，经常会听到两个词：compute bound 和 memory bound。下面这张图不是给出固定分类答案，而是帮助你把阶段、现象和可能瓶颈放在一起看。
 
 Compute bound 表示主要受计算能力限制。典型现象包括：
 
@@ -319,7 +323,7 @@ Decode 更容易表现为 memory bound，因为它每一步新增计算少，却
 本章配套代码位于：
 
 ```text
-book/chapters/chapter01/demo/demo.py
+chapter01/demo/demo.py
 ```
 
 ### 1.9.1 启动 vLLM 服务
@@ -335,7 +339,7 @@ Qwen/Qwen2.5-0.5B
 如果模型已经在 Hugging Face cache 中，或当前环境可以直接解析该模型 id：
 
 ```bash
-python3 book/chapters/chapter01/demo/start_vllm.py \
+python3 chapter01/demo/start_vllm.py \
   --model Qwen/Qwen2.5-0.5B \
   --served-model-name Qwen/Qwen2.5-0.5B \
   --host 0.0.0.0 \
@@ -345,7 +349,7 @@ python3 book/chapters/chapter01/demo/start_vllm.py \
 如果模型已经在本地目录，例如 GX10 上的 `/home/admin/models/Qwen2.5-0.5B`：
 
 ```bash
-python3 book/chapters/chapter01/demo/start_vllm.py \
+python3 chapter01/demo/start_vllm.py \
   --model /home/admin/models/Qwen2.5-0.5B \
   --served-model-name Qwen/Qwen2.5-0.5B \
   --host 0.0.0.0 \
@@ -359,7 +363,7 @@ python3 book/chapters/chapter01/demo/start_vllm.py \
 从课程根目录运行：
 
 ```bash
-python3 book/chapters/chapter01/demo/demo.py \
+python3 chapter01/demo/demo.py \
   --base-url http://127.0.0.1:8000/v1 \
   --model Qwen/Qwen2.5-0.5B \
   --prompt "请解释一次 LLM 在线推理请求从 Prompt 到完整回答的过程。" \
@@ -375,6 +379,16 @@ python3 book/chapters/chapter01/demo/demo.py \
 - 第一个 chunk 之后，后续 chunk 是否持续返回。
 - 请求结束时，服务是否返回 token usage。
 - 如果机器上有 `nvidia-smi`，脚本是否能采集请求前后的 GPU 快照。
+
+脚本输出里的字段可以这样对应到生命周期：
+
+| 输出字段 | 本章关注点 |
+|---|---|
+| `prompt` | 确认原始输入是什么 |
+| `time_to_first_token_ms` | 对应首个流式 chunk 出现前的等待 |
+| `inter_token_latency_avg_ms` | 对应后续 chunk 持续返回的节奏 |
+| `usage` | 确认输入和输出 token 数 |
+| `gpu_before` / `gpu_after` | 辅助观察请求前后的 GPU 状态 |
 
 这里不要求你解释指标优劣，只要把一次真实请求的生命周期跑通。下一章会专门讨论如何把这些观察变成 TTFT、ITL、TPS 等指标实验。
 
@@ -423,8 +437,8 @@ KV Cache 连接了 Prefill 和 Decode。Prefill 写入历史 K/V，Decode 反复
 
 1. 用自己的话画出一次 LLM 请求的生命周期。
 2. 分别解释 Prefill 和 Decode 的输入、输出和主要开销。
-3. 运行本章 demo 的三组实验，记录 TTFT、ITL、TPS 的变化。
-4. 写一段 200 字以内的分析：哪个变量对 TTFT 影响最大，哪个变量对总响应时间影响最大。
+3. 运行本章 demo，标注输出中的原始 prompt、首个流式 chunk、后续 chunk 和 usage 字段。
+4. 写一段 200 字以内的说明：这次请求的哪个部分对应 Prefill，哪个部分对应 Decode，KV Cache 在哪里被创建和继续使用。
 
 ## 自检清单
 
@@ -434,4 +448,4 @@ KV Cache 连接了 Prefill 和 Decode。Prefill 写入历史 K/V，Decode 反复
 - [ ] 能说明 KV Cache 的作用和生命周期。
 - [ ] 能区分 TTFT、ITL、TPS。
 - [ ] 能初步判断 compute bound 和 memory bound。
-- [ ] 能根据 demo 输出写出一段性能分析结论。
+- [ ] 能根据 demo 输出标注请求生命周期阶段。

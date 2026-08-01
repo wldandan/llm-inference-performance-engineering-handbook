@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <rect width="1280" height="720" fill="#fff"/><text x="64" y="72" font-family="Arial, sans-serif" font-size="34" fill="#111">推理服务的三类状态</text>
+  <g fill="none" stroke="#222" stroke-width="3">
+    <rect x="105" y="170" width="300" height="300" rx="8"/><rect x="490" y="170" width="300" height="300" rx="8"/><rect x="875" y="170" width="300" height="300" rx="8"/>
+  </g>
+  <g font-family="Arial, sans-serif" fill="#111">
+    <text x="255" y="225" font-size="28" text-anchor="middle">请求状态</text><text x="640" y="225" font-size="28" text-anchor="middle">执行状态</text><text x="1025" y="225" font-size="28" text-anchor="middle">资源状态</text>
+    <text x="150" y="290" font-size="22">prompt / params</text><text x="150" y="335" font-size="22">stream / cancel</text><text x="150" y="380" font-size="22">生成进度</text>
+    <text x="535" y="290" font-size="22">weights / tokenizer</text><text x="535" y="335" font-size="22">batch metadata</text><text x="535" y="380" font-size="22">runtime cache</text>
+    <text x="920" y="290" font-size="22">GPU memory</text><text x="920" y="335" font-size="22">KV blocks</text><text x="920" y="380" font-size="22">queue / slots</text>
+  </g>
+  <text x="64" y="630" font-family="Arial, sans-serif" font-size="24" fill="#111">Key Takeaway: 调度决策必须同时看请求、执行和资源三类状态。</text>
+</svg>

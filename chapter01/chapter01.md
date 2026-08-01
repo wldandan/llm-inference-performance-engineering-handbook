@@ -1,342 +1,211 @@
-# 第 1 章 LLM 推理流程
+# 第 1 章 LLM Inference Architecture
 
-## 本章导读
+## 学习目标
 
-学习 LLM 推理性能优化，第一步不是调参数，也不是先追求最高 tokens/s，而是先弄清楚一件事：一次请求从用户输入 prompt，到模型返回第一个 token，再到完整回答结束，中间到底发生了什么。
+学完本章后，你应该能够：
 
-本章围绕“LLM 推理流程”建立一张基础地图。后面讨论 TTFT、ITL、KV Cache、Profiling、FlashAttention、PagedAttention、Batching、Speculative Decoding 时，都会回到这张地图上定位问题。
+- 画出一个在线 LLM 推理系统的基本架构。
+- 解释 Client、Gateway、Scheduler、Worker、Runtime 与 GPU 的职责边界。
+- 说明为什么 LLM 推理服务不能只看模型本身，还要看队列、调度、运行时和硬件资源。
+- 比较 vLLM、SGLang、TensorRT-LLM 与 Llama.cpp 在架构取向上的差异。
+- 用一次最小 Demo 观察“客户端请求是否成功进入推理服务，并由哪个模型后端返回结果”。
 
-读完本章，你应该能够回答五个问题：
+本章只建立架构视图。请求生命周期会在第 2 章展开；TTFT、TPOT、TPS、P95/P99 等指标会在第 3 章系统定义；Benchmark、Profiling 和优化技术放在后续章节。
 
-- 一次 LLM 请求会经过哪些阶段？
-- Prefill 和 Decode 分别做什么？
-- 为什么首 token 慢和输出卡顿不是同一个问题？
-- KV Cache 为什么是推理性能里的关键对象？
-- 看到一个性能现象时，应该先定位到哪个阶段？
+## 核心问题
 
-可以先把一次请求想成下面这条链路：
+本章围绕四个问题展开：
 
-```text
-用户请求
-  -> 排队与调度
-  -> Tokenizer
-  -> Prefill：处理完整 Prompt
-  -> 采样第一个 token
-  -> 流式返回首 token
-  -> Decode：逐 token 生成
-  -> 满足停止条件
-  -> 释放或复用 KV Cache
-```
+1. LLM 推理系统长什么样？
+2. 一个在线请求进入服务后，会经过哪些系统组件？
+3. Scheduler、Worker、Runtime、GPU 分别管什么？
+4. 为什么不同推理框架的架构取向会影响性能优化方式？
 
-这条链路就是第一章的主线。
+![LLM 推理系统全局架构](figures/fig01-01_inference_system_architecture.svg)
 
-![一次 LLM 在线推理请求生命周期](figures/fig01-01_request_lifecycle.svg)
+图1-1：LLM 推理系统全局架构。
 
-图1-1：一次 LLM 在线推理请求生命周期。
+## 1.1 先看系统，不先看模型
 
-## 1.1 从“用户觉得慢”开始
+很多人第一次做 LLM 推理优化，会从模型文件、显存占用或某个框架参数开始看。这些当然重要，但它们不是完整系统。
 
-推理系统面对的是在线请求。用户不会关心 GPU kernel 是否漂亮，也不会先问显存利用率是否合理。用户最直接的感受通常只有两种：
+一个在线推理请求至少要经过几层东西：客户端发起请求，服务入口做协议处理和鉴权，调度器决定请求什么时候进入执行队列，Worker 调用推理运行时，Runtime 再把模型计算提交给 GPU。请求返回时，还要把生成结果按普通响应或流式响应送回客户端。
 
-- 等了很久才看到第一个字。
-- 已经开始输出了，但后续一顿一顿。
-
-这两种慢，背后的原因可能完全不同。
-
-如果第一个 token 很慢，问题通常要从 TTFT 开始看。TTFT 是 Time To First Token，表示从请求发出到第一个生成 token 返回之间的时间。它可能受到排队、tokenization、prefill、首 token 采样、网络返回等多个环节影响。
-
-如果第一个 token 很快，但后续输出不稳定，就要看 ITL。ITL 是 Inter-Token Latency，表示相邻两个输出 token 之间的时间间隔。它更接近用户看到模型“打字速度”的体验。
-
-所以，推理性能不能只看一个平均 tokens/s。一个服务可能吞吐很高，但首 token 很慢；也可能首 token 很快，但并发一上来 P95、P99 延迟明显变差。
-
-本课程后续会反复使用这个分析顺序：
+可以把它先看成一条系统链路：
 
 ```text
-先描述现象
-  -> 再定位阶段
-  -> 再选择指标
-  -> 再判断瓶颈
-  -> 最后选择优化手段
+Client
+  -> Gateway
+  -> Scheduler
+  -> Worker
+  -> Runtime
+  -> GPU
+  -> Response
 ```
 
-第一章要解决的就是“定位阶段”这件事：先把一次请求拆成 Prefill、Decode、KV Cache、调度和返回链路，再说明常见性能现象更可能落在哪些阶段。指标本身会在后续章节展开，本章只先建立它们和请求阶段之间的对应关系。
+这条链路不是为了背名词，而是为了定位责任。用户觉得慢，可能是 Gateway 前面的排队，可能是 Scheduler 没有形成有效 batch，可能是 Worker 被 KV Cache 容量卡住，也可能是 Runtime 的 kernel 执行效率低。只看模型 forward 时间，容易漏掉服务系统里的等待和资源竞争。
 
-![LLM Serving 整体架构](figures/fig01-02_serving_architecture.svg)
+本课程后面的所有性能分析，都会回到这个架构视图上：先判断性能现象发生在哪个组件，再决定该采集什么指标、用什么工具、改哪个参数或哪段实现。
 
-图1-2：LLM Serving 整体架构。
+## 1.2 Client 与 Gateway：请求真正进入系统的地方
 
-## 1.2 一次请求的完整生命周期
+Client 可以是聊天界面、业务服务、Agent 工作流、评测脚本，也可以是另一个后端系统。它关心的是 API 是否稳定、首包是否及时、输出是否连续、失败时能不能重试。
 
-一次典型的 LLM 在线推理请求，可以拆成八个阶段。
+Gateway 是推理系统的入口层。它通常处理这些事情：
 
-第一，用户发送 prompt。这个 prompt 可能是一句话，也可能是一段长文档、一个代码文件、一次多轮对话历史。
+- 协议适配，例如 OpenAI-compatible HTTP API、gRPC 或内部 RPC。
+- 鉴权、租户识别、限流和配额。
+- 请求参数校验，例如模型名、max tokens、temperature、stream。
+- 路由到合适的模型服务实例。
+- 记录请求日志和基础观测数据。
 
-第二，请求进入推理服务。服务可能会做鉴权、限流、排队、调度，也可能会把多个请求合并成 batch。
+Gateway 不应该承担模型计算，但它会影响请求进入计算层之前的等待时间。生产系统里，一个模型服务“GPU 还没满但用户仍然慢”，常常不是 GPU 算不动，而是入口、路由或队列策略没有设计好。
 
-第三，Tokenizer 把文本转换成 token ids。模型不能直接处理自然语言文本，它处理的是 token 序列。
+![Client 与 Gateway 边界](figures/fig01-02_client_gateway_boundary.svg)
 
-第四，模型进入 Prefill 阶段。Prefill 会处理完整 prompt，计算每一层 Transformer 的中间结果，并建立后续生成要用的 KV Cache。
+图1-2：Client 与 Gateway 边界。
 
-第五，模型得到第一个输出 token 的 logits，采样器根据 temperature、top-p、top-k 等参数选出第一个 token。
+## 1.3 Scheduler：推理系统的交通控制器
 
-第六，服务把第一个 token 流式返回给用户。用户感受到的“终于开始回答了”，就发生在这里。
+Scheduler 决定哪些请求进入下一轮执行。它是 LLM Serving 和普通 Web 服务差别最大的地方之一。
 
-第七，模型进入 Decode 阶段。Decode 每次基于上一个 token 和历史 KV Cache 继续生成下一个 token。这个过程会循环很多次。
+普通 Web 服务里，请求通常可以被线程池或进程池相对独立地处理。LLM 推理不同：多个请求会共享 GPU、模型权重、KV Cache 空间和 batch 执行机会。调度器必须在吞吐、单请求延迟、显存容量和公平性之间做取舍。
 
-第八，请求满足停止条件后结束。停止条件可能是 EOS、stop words、达到 max tokens，或者客户端主动断开。请求结束后，KV Cache 会被释放，也可能因为前缀复用而被保留。
+Scheduler 常见职责包括：
 
-用一条更紧凑的链路表示：
+- 维护等待队列和运行中请求集合。
+- 决定本轮 batch 包含哪些请求。
+- 控制 prompt token、output token、并发数和 KV Cache block 的资源预算。
+- 在长请求和短请求之间做公平性处理。
+- 在内存不足或优先级变化时触发抢占、延迟或拒绝。
+
+本章不展开 Dynamic Batching、Continuous Batching 和 Chunked Prefill 的算法细节。这些属于 Serving Optimization，会在第 17 到第 20 章系统讲。这里先记住一句话：Scheduler 是请求能否高效共享 GPU 的核心组件。
+
+![Scheduler 的核心职责](figures/fig01-03_scheduler_responsibility.svg)
+
+图1-3：Scheduler 的核心职责。
+
+## 1.4 Worker、Runtime 与 GPU：真正执行模型的地方
+
+Worker 是服务进程中负责模型执行的单元。一个 Worker 可能绑定一张 GPU，也可能和其他 Worker 共同使用多张 GPU。它通常持有模型权重、运行时上下文、KV Cache 管理器，以及和调度器交互的执行循环。
+
+Runtime 是 Worker 里面真正调用底层执行能力的部分。它负责把模型计算变成 GPU 可以运行的 kernel、graph、engine 或算子调用。不同框架在 Runtime 层的设计差异很大：
+
+- 有的优先保持 Python 和 Hugging Face 生态兼容。
+- 有的把模型编译成高度优化的 engine。
+- 有的针对结构化生成和多轮对话做前缀复用。
+- 有的优先支持 CPU、Metal、量化和边缘设备。
+
+GPU 是计算资源，但不是孤立资源。推理系统里同时占用 GPU 的内容包括模型权重、KV Cache、临时工作区、通信缓冲区和运行时预留内存。GPU 忙不忙，只是一个结果；为什么忙、忙在哪一段、是不是有效地忙，要等第 6 章 Profiling Toolchain 才能严肃回答。
+
+![Worker Runtime GPU 分层](figures/fig01-04_worker_runtime_gpu.svg)
+
+图1-4：Worker、Runtime 与 GPU 的分层关系。
+
+## 1.5 模型服务内部的三类状态
+
+架构图不只是组件框。推理系统之所以难优化，是因为它同时管理三类状态。
+
+第一类是请求状态。包括用户输入、生成参数、当前生成到哪里、是否 stream、是否取消、是否超时。
+
+第二类是模型执行状态。包括模型权重、tokenizer、采样器、batch metadata、CUDA stream、通信上下文和运行时缓存。
+
+第三类是资源状态。包括 GPU 显存、KV Cache block、队列长度、batch slot、并发上限和实例健康状态。
+
+一个调度决策如果只看请求，不看资源，会把 GPU 或显存打爆；只看资源，不看请求，会牺牲交互体验；只看平均吞吐，不看尾部延迟，会让生产系统在高峰期不可控。
+
+![推理服务的三类状态](figures/fig01-05_serving_state_types.svg)
+
+图1-5：推理服务的三类状态。
+
+## 1.6 单实例、多实例与平台化服务
+
+最小的 LLM 推理服务可以只有一个实例：一个 Gateway 接一个 Worker，Worker 加载一个模型，后面连一张 GPU。这种结构最容易调试，也适合课程 Demo。
+
+生产系统通常会更复杂：
+
+- 单模型多实例：同一个模型部署多个副本，通过负载均衡分摊流量。
+- 多模型服务：多个模型共享一组 GPU，根据请求动态路由或加载。
+- 平台化服务：统一管理模型版本、租户、配额、监控、发布、回滚和成本。
+
+这些形态没有绝对优劣。单模型服务隔离性好，排障直接；多模型服务提高资源利用率，但路由、缓存和冷启动更复杂；平台化服务适合组织内多个团队共享能力，但控制面和观测体系要更扎实。
+
+第 1 章只建立这几种形态的架构差别。容量模型、多 GPU 和 scale-out 会在第 21 到第 24 章展开。
+
+![部署形态演进](figures/fig01-06_deployment_patterns.svg)
+
+图1-6：部署形态演进。
+
+## 1.7 四类推理框架的架构取向
+
+不同框架不是同一个系统的简单替代品。它们对“什么最重要”的判断不同。
+
+vLLM 的重点是高吞吐在线服务和成熟生态。它围绕请求调度、PagedAttention、KV Cache block 管理、OpenAI-compatible API 和多 GPU 执行构建，适合作为通用 GPU Serving 的起点。
+
+SGLang 更强调结构化生成、多轮对话和 Agent 工作流。它在前缀复用、结构化约束、服务端编排等场景里有自己的设计重点。
+
+TensorRT-LLM 的取向是 NVIDIA GPU 上的高性能推理。它更依赖编译、engine、算子融合和硬件相关优化，适合模型与硬件相对稳定、团队能投入构建和调试成本的场景。
+
+Llama.cpp 走的是另一条路：让模型在 CPU、Metal、消费级 GPU 和边缘设备上可用。它通常不是大型 GPU 在线服务的第一选择，但对本地开发、边缘部署和低成本试验很有价值。
+
+这里不做“谁最好”的结论。框架选择本质上是在生态、性能、硬件、可维护性和业务场景之间取舍。
+
+![推理框架架构取向对比](figures/fig01-07_framework_architecture_comparison.svg)
+
+图1-7：推理框架架构取向对比。
+
+## 1.8 架构视图如何服务性能分析
+
+本课程的统一方法是：
 
 ```text
-Prompt
-  -> Token IDs
-  -> Prefill
-  -> First Token
-  -> Decode Loop
-  -> Final Response
+理解系统
+  -> 理解瓶颈
+  -> 定位瓶颈
+  -> 优化方案
+  -> 验证收益
 ```
 
-其中最重要的分界线，是 Prefill 和 Decode。
+第 1 章只做第一步：理解系统。
 
-![Decoder-only Transformer 推理过程](figures/fig01-03_decoder_only_generation.svg)
+理解系统不是画一张漂亮图，而是能把性能问题放回具体组件：
 
-图1-3：Decoder-only Transformer 推理过程。
-
-## 1.3 Decoder-only Transformer 如何生成 token
-
-当前主流大语言模型大多是 decoder-only Transformer。它的生成方式是自回归的：每次预测下一个 token，再把这个新 token 接到上下文后面，继续预测再下一个 token。
-
-一个简化过程如下：
-
-```text
-prompt tokens
-  -> 模型计算
-  -> 预测 token_1
-  -> 把 token_1 加入上下文
-  -> 预测 token_2
-  -> 把 token_2 加入上下文
-  -> ...
-  -> 遇到停止条件
-```
-
-这个机制决定了推理性能的两个基本事实。
-
-第一，输出越长，Decode 次数越多。生成 20 个 token，大约要经历 20 次 decode；生成 2000 个 token，就要经历大约 2000 次 decode。输出长度会直接影响总响应时间。
-
-第二，历史上下文会被反复使用。如果每生成一个新 token，都重新计算完整 prompt 和所有历史输出，成本会非常高。KV Cache 的作用，就是把历史 token 在 attention 中的 Key 和 Value 缓存起来，让后续 decode 可以复用。
-
-因此，理解 LLM 推理，不能只看模型结构，还要看生成过程中的状态复用。
-
-## 1.4 Prefill：处理完整 Prompt
-
-Prefill 是从模型开始处理输入，到第一个输出 token 生成之前的阶段。它的输入是完整 prompt。
-
-在 Prefill 阶段，模型会把 prompt 中所有 token 一次性送入 Transformer。每一层都会执行 attention、MLP、残差连接和归一化。与此同时，模型会为这些历史 token 计算并写入 KV Cache。
-
-Prefill 的主要工作包括：
-
-- 处理完整 prompt token 序列。
-- 计算每一层 attention 中的 Q、K、V。
-- 执行大规模矩阵计算。
-- 为后续 Decode 写入 KV Cache。
-- 得到用于采样第一个输出 token 的 logits。
-
-Prefill 通常强影响 TTFT。prompt 越长，Prefill 处理的 token 越多，第一个 token 之前的等待就越可能变长。
-
-当你看到“用户等了很久才看到第一个字，但后面输出还算顺滑”时，不要第一反应就去看 Decode。更合理的顺序是先检查：
-
-- 请求是否在排队。
-- tokenization 是否耗时明显。
-- Prefill 是否处理了很长 prompt。
-- GPU timeline 中 Prefill kernel 是否占据主要时间。
-- 首 token 采样和流式返回是否有额外等待。
-
-Prefill 常见瓶颈是 compute bound。意思是它更容易受计算能力限制，因为它处理的是一整段序列，矩阵乘规模较大，更容易把 GPU 的计算单元用起来。
-
-但这不是铁律。工程上不能只靠口号判断瓶颈，必须用指标和 profiling 结果确认。
-
-![Prefill 执行过程](figures/fig01-04_prefill_flow.svg)
-
-图1-4：Prefill 执行过程。
-
-## 1.5 Decode：逐 token 生成
-
-Decode 是第一个 token 之后的生成阶段。它的输入通常不是完整 prompt，而是“刚生成的 token + 历史 KV Cache”。
-
-每一步 Decode 大致做三件事：
-
-```text
-读取历史 KV Cache
-  -> 基于当前 token 做一次前向计算
-  -> 采样下一个 token，并把新的 K/V 追加到 KV Cache
-```
-
-这个过程会一直循环，直到遇到停止条件。
-
-Decode 的关键特点是：
-
-- 每一步新增 token 很少，通常每个请求只新增 1 个 token。
-- 每一步都要读取历史 KV Cache。
-- 输出越长，循环次数越多。
-- 单步计算粒度比 Prefill 小。
-- 并发和 batching 策略会明显影响吞吐与延迟。
-
-Decode 通常强影响 ITL。ITL 偏高时，用户会感觉模型输出很卡。
-
-Decode 常见瓶颈是 memory bound。原因是每一步新增计算不多，但要不断读取历史 KV Cache。上下文越长，需要读取的历史状态越多，内存带宽压力越明显。
-
-当你看到“第一个 token 很快，但后续输出一顿一顿”时，应优先检查：
-
-- ITL 是否稳定。
-- KV Cache 读取是否成为瓶颈。
-- 调度和 batching 是否影响 Decode 节奏。
-- 请求长度差异是否导致调度效率下降。
-- 采样、后处理或网络发送是否拖慢。
-
-![Decode 执行过程](figures/fig01-05_decode_flow.svg)
-
-图1-5：Decode 执行过程。
-
-## 1.6 KV Cache：连接 Prefill 与 Decode
-
-KV Cache 是推理性能优化中的核心对象。它缓存的是 attention 里历史 token 的 Key 和 Value。
-
-没有 KV Cache 时，每生成一个 token，都需要重新处理完整上下文。这样成本会随着上下文变长迅速上升。
-
-有了 KV Cache 后，Prefill 先把 prompt 的 K/V 写入缓存；Decode 每一步读取历史 K/V，只为新 token 计算新的 K/V，并追加到缓存里。
-
-KV Cache 的生命周期可以简化为：
-
-```text
-请求开始
-  -> 分配 cache block
-  -> Prefill 写入 prompt K/V
-  -> Decode 读取历史 K/V
-  -> Decode 追加新 token K/V
-  -> 请求结束
-  -> 释放、复用或保留为 prefix cache
-```
-
-![KV Cache 生命周期与增长](figures/fig01-06_kv_cache_growth.svg)
-
-图1-6：KV Cache 生命周期与增长。
-
-KV Cache 的显存占用主要受这些因素影响：
-
-- 模型层数。
-- hidden size。
-- attention heads 和 KV heads。
-- dtype，例如 FP16、FP8、INT8。
-- prompt length。
-- generated tokens。
-- batch size 和并发请求数。
-
-可以用一个直觉公式理解：
-
-```text
-KV Cache 显存 ~= 层数 x token 数 x KV hidden 维度 x 2(K 和 V) x dtype bytes
-```
-
-这个公式不是生产系统里的精确内存模型，实际实现还会受到 block size、对齐、分页管理和运行时预留显存影响。但它足够帮助我们建立方向感：上下文越长、输出越长、并发越高，KV Cache 越容易成为显存容量和内存带宽压力的来源。
-
-后续课程中的 PagedAttention、Prefix Cache、KV Quantization，本质上都围绕 KV Cache 展开。
-
-![GPU Memory & Compute Lifecycle](figures/fig01-07_gpu_lifecycle.svg)
-
-图1-7：GPU Memory & Compute Lifecycle。
-
-从 GPU 视角看，一次请求不是一段均匀的计算。Prefill 更像一段集中处理完整输入的大块计算；Decode 更像很多次小步循环，每一步都要读历史 KV Cache，再追加新的 K/V。GPU 显存里会同时承载模型权重、运行时工作区和不断增长的 KV Cache；GPU 计算单元和 HBM 带宽在不同阶段承受的压力也不一样。
-
-这也是为什么后面做 profiling 时，不能只问“GPU 忙不忙”，还要问“GPU 正在忙哪个阶段、忙的是计算还是访存”。
-
-## 1.7 阶段定位中的三个线索：TTFT、ITL、TPS
-
-第一章先把三个指标当作阶段定位线索，不展开完整指标体系。
-
-TTFT 是 Time To First Token。它回答的问题是：用户要等多久才能看到第一个输出 token？
-
-TTFT 主要对应首 token 体验，常用于观察 Prefill、排队、tokenization 和首包链路。
-
-ITL 是 Inter-Token Latency。它回答的问题是：两个相邻输出 token 之间隔了多久？
-
-ITL 主要对应流式输出是否顺滑，常用于观察 Decode、KV Cache、调度、采样和网络发送。
-
-TPS 是 Tokens Per Second。它回答的问题是：系统单位时间内能生成多少 token？
-
-TPS 主要对应吞吐，但不能单独代表用户体验。更大的 batch 可能提升 TPS，也可能让单个请求等待更久。
-
-三者可以这样对应：
-
-| 指标 | 关注问题 | 常见关联阶段 |
+| 现象 | 优先查看的架构位置 | 本章只给定位方向 |
 |---|---|---|
-| TTFT | 第一个 token 等多久 | 排队、Tokenizer、Prefill、首包返回 |
-| ITL | 输出是否顺滑 | Decode、KV Cache、调度、采样 |
-| TPS | 总吞吐有多高 | Batch、并发、调度、GPU 利用率 |
+| 请求根本进不来 | Client / Gateway | 检查协议、路由、鉴权、限流 |
+| 并发上来后等待变长 | Gateway / Scheduler | 检查队列和调度入口 |
+| GPU 有空洞 | Scheduler / Worker | 检查 batch 形成和 worker 执行节奏 |
+| 显存很快吃满 | Worker / Runtime / GPU | 检查模型权重、KV Cache、并发预算 |
+| 框架迁移成本高 | Runtime / API 层 | 检查接口抽象和框架绑定 |
 
-优化前先确认目标。如果目标是交互式聊天，TTFT 和 ITL 很重要；如果目标是离线批处理，TPS 可能更重要。第 2 章会正式展开这些指标的定义、统计方式和实验方法。
+这些还不是正式诊断。第 3 章会定义指标，第 5 章会讲 Benchmark，第 6 章会讲 Profiling 工具。现在要做的是先知道“去哪里看”。
 
-![Compute Bound vs Memory Bound](figures/fig01-08_compute_vs_memory.svg)
+![架构视图到性能分析](figures/fig01-08_architecture_to_analysis.svg)
 
-图1-8：Compute Bound vs Memory Bound。
+图1-8：架构视图到性能分析。
 
-## 1.8 Compute Bound 与 Memory Bound
+## 1.9 Demo：确认一个最小推理服务架构
 
-性能优化时，经常会听到两个词：compute bound 和 memory bound。下面这张图不是给出固定分类答案，而是帮助你把阶段、现象和可能瓶颈放在一起看。
-
-Compute bound 表示主要受计算能力限制。典型现象包括：
-
-- SM 或 Tensor Core 利用率较高。
-- HBM 带宽没有明显打满。
-- 大规模矩阵计算占据主要时间。
-- 更快的 attention、GEMM、算子融合可能有效。
-
-Prefill 更容易表现为 compute bound，因为它一次处理完整 prompt，计算规模较大。
-
-Memory bound 表示主要受数据读取和写入限制。典型现象包括：
-
-- HBM 带宽压力高。
-- SM 利用率可能不满。
-- 上下文变长后 ITL 明显变差。
-- KV Cache layout、PagedAttention、KV Quantization 可能有效。
-
-Decode 更容易表现为 memory bound，因为它每一步新增计算少，却要反复读取历史 KV Cache。
-
-真实系统还会有其他瓶颈，例如：
-
-- Scheduling bound：调度策略导致请求等待或 GPU 空洞。
-- Capacity bound：显存容量限制 batch size、上下文长度或并发数。
-- CPU bound：tokenization、采样、后处理或网络栈拖慢。
-- Synchronization bound：频繁同步打断 GPU pipeline。
-
-所以，第一判断可以靠经验，但最终结论必须靠观测。
-
-![Profiling Workflow](figures/fig01-09_profiling_workflow.svg)
-
-图1-9：Profiling Workflow。
-
-## 1.9 本章实验：观察一次推理过程
-
-本章实验只做一件事：用 vLLM 启动一个 OpenAI-compatible 服务，发送一次真实流式请求，观察请求从进入服务到持续返回 token 的过程。
-
-系统性的 TTFT、ITL、TPS、P95/P99、GPU Utilization 等指标实验放到第 2 章。本章只把这些字段当作辅助观察结果，不展开 benchmark 结论。
-
-本章配套代码位于：
+本章 Demo 不做性能 benchmark，只确认一个最小架构能跑通：
 
 ```text
-chapter01/demo/demo.py
+demo.py
+  -> OpenAI-compatible API
+  -> vLLM API Server
+  -> Worker / Runtime
+  -> GPU
+  -> Streaming Response
+```
+
+配套代码位于：
+
+```text
+chapter01/demo/
 ```
 
 ### 1.9.1 启动 vLLM 服务
 
-在 GX10 或云 GPU 环境中安装 vLLM 后，启动一个兼容 OpenAI API 的服务。模型下载和环境准备由读者或实验环境提前完成，本章只演示如何启动服务和发送请求。
-
-默认模型为：
-
-```text
-Qwen/Qwen2.5-0.5B
-```
-
-如果模型已经在 Hugging Face cache 中，或当前环境可以直接解析该模型 id：
+如果模型可以通过 Hugging Face id 解析：
 
 ```bash
 python3 chapter01/demo/start_vllm.py \
@@ -346,7 +215,7 @@ python3 chapter01/demo/start_vllm.py \
   --port 8000
 ```
 
-如果模型已经在本地目录，例如 GX10 上的 `/home/admin/models/Qwen2.5-0.5B`：
+如果模型已经在本地目录，例如 `/home/admin/models/Qwen2.5-0.5B`：
 
 ```bash
 python3 chapter01/demo/start_vllm.py \
@@ -356,9 +225,7 @@ python3 chapter01/demo/start_vllm.py \
   --port 8000
 ```
 
-云环境部署时，只要能访问 vLLM 的 `/v1/chat/completions` 接口即可。模型路径、显存配置、tensor parallel size 等参数根据实际机器调整。
-
-### 1.9.2 发送一次流式请求
+### 1.9.2 发送一次请求
 
 从课程根目录运行：
 
@@ -366,86 +233,138 @@ python3 chapter01/demo/start_vllm.py \
 python3 chapter01/demo/demo.py \
   --base-url http://127.0.0.1:8000/v1 \
   --model Qwen/Qwen2.5-0.5B \
-  --prompt "请解释一次 LLM 在线推理请求从 Prompt 到完整回答的过程。" \
-  --max-tokens 256 \
+  --prompt "请用一句话说明这个服务由哪些组件组成。" \
+  --max-tokens 128 \
   --requests 1 \
   --concurrency 1
 ```
 
-观察：
+本章只观察：
 
-- 请求是否能成功进入 vLLM 服务。
-- 是否先等待一段时间，然后开始收到第一个流式 chunk。
-- 第一个 chunk 之后，后续 chunk 是否持续返回。
-- 请求结束时，服务是否返回 token usage。
-- 如果机器上有 `nvidia-smi`，脚本是否能采集请求前后的 GPU 快照。
+- 客户端是否能访问 OpenAI-compatible API。
+- 请求是否由指定模型名处理。
+- 服务是否返回 stream chunks 和 usage。
+- 如果有 `nvidia-smi`，是否能看到 GPU 快照。
 
-脚本输出里的字段可以这样对应到生命周期：
+脚本会输出 TTFT、ITL、tokens/s 等字段，但这里不解释指标优劣，也不做结论。第 3 章会系统讲指标，第 5 章再讲可信 Benchmark。
 
-| 输出字段 | 本章关注点 |
-|---|---|
-| `prompt` | 确认原始输入是什么 |
-| `time_to_first_token_ms` | 对应首个流式 chunk 出现前的等待 |
-| `inter_token_latency_avg_ms` | 对应后续 chunk 持续返回的节奏 |
-| `usage` | 确认输入和输出 token 数 |
-| `gpu_before` / `gpu_after` | 辅助观察请求前后的 GPU 状态 |
+![本章最小 Demo 架构](figures/fig01-09_demo_architecture.svg)
 
-这里不要求你解释指标优劣，只要把一次真实请求的生命周期跑通。下一章会专门讨论如何把这些观察变成 TTFT、ITL、TPS 等指标实验。
+图1-9：本章最小 Demo 架构。
 
-![Performance Diagnosis Tree](figures/fig01-10_diagnosis_tree.svg)
+## 1.10 课堂案例：企业问答服务应该画成什么架构
 
-图1-10：Performance Diagnosis Tree。
+假设一家企业要做内部知识库问答。用户在网页里提问，系统会带上员工身份、部门权限和问题文本，请求部署在公司 GPU 集群上的 LLM 服务。模型服务使用 vLLM，前面有 API Gateway，后面有多张 GPU。
 
-## 1.10 常见误区
+第一版架构如果只画成：
 
-误区一：GPU 利用率越高越好。
+```text
+Web App -> LLM
+```
 
-GPU 利用率高只说明 GPU 忙，不说明用户体验好。在线推理还要同时看 TTFT、ITL、吞吐、P95/P99 延迟、错误率和资源成本。
+几乎没法排查问题。试运行后，业务方很快会遇到几类反馈：
 
-误区二：吞吐提升就是优化成功。
+- 有些用户能访问不该看的文档。
+- 晚上批量任务一跑，白天聊天请求也变慢。
+- GPU 利用率看起来不低，但部分请求仍然等很久。
+- 运维同学很难判断失败请求卡在业务系统、Gateway 还是模型服务。
 
-吞吐提升可能来自更大的 batch，但更大的 batch 也可能增加排队和单请求延迟。交互式聊天和离线批处理的目标不同，不能用同一套标准判断。
+更合理的架构图至少要拆成：
 
-误区三：所有慢都靠 FlashAttention 解决。
+```text
+Web App
+  -> Enterprise Gateway
+  -> Auth / Policy Check
+  -> LLM Gateway
+  -> Scheduler
+  -> Worker Pool
+  -> Runtime
+  -> GPU
+```
 
-FlashAttention 主要改善 attention 相关计算和访存模式。如果瓶颈在调度、KV Cache 容量、CPU tokenization 或网络返回，它不会解决根因。
+这样画以后，问题有了落点。权限问题在 Enterprise Gateway 或 Auth / Policy Check；白天请求被晚上任务拖慢，可能是 Gateway 路由或 Scheduler 共享资源策略；GPU 忙但请求等待，可能是队列、batch 形成或 Worker 资源预算；失败请求排查，则要沿着链路逐层看日志。
 
-误区四：Prefill 和 Decode 可以用同一套直觉优化。
+这个案例的重点不是设计完整企业平台，而是训练架构意识：先把组件边界画出来，性能和可靠性问题才有位置可放。
 
-Prefill 更像大块计算，Decode 更像反复读取历史状态的小步循环。二者指标、瓶颈和优化策略都不同。
+课堂讨论：
 
-## 1.11 本章小结
+1. 如果要支持多个模型版本，架构图里应该增加哪个组件？
+2. 如果要区分交互式请求和离线批处理请求，Scheduler 前后应该怎么标注？
 
-本章建立了 LLM 推理流程的基础地图。
+### 补充案例 A：代码补全服务为什么更在意 Gateway 和路由
 
-一次请求从用户 prompt 开始，经过排队、tokenization、Prefill、首 token 返回、Decode 循环，最后在停止条件满足后结束。Prefill 处理完整 prompt，通常强影响 TTFT；Decode 逐 token 生成，通常强影响 ITL 和总响应时间。
+代码补全服务和企业问答服务都调用 LLM，但架构优先级不同。代码补全通常发生在 IDE 里，用户输入停顿很短，补全建议要很快返回。这里 Client 不再是普通网页，而是 IDE 插件；Gateway 需要识别项目、语言、文件上下文和用户权限；路由层可能要把短补全请求和长代码解释请求分开。
 
-KV Cache 连接了 Prefill 和 Decode。Prefill 写入历史 K/V，Decode 反复读取并追加新的 K/V。随着上下文长度、输出长度和并发增加，KV Cache 会逐渐成为显存容量和内存带宽压力的重要来源。
+可以让学员画两条链路：
 
-后续章节的优化技术，都可以放回这张地图里理解：
+```text
+IDE Plugin -> Gateway -> Low-latency Scheduler -> Small Completion Model
+IDE Plugin -> Gateway -> Standard Scheduler -> Larger Chat Model
+```
 
-- FlashAttention：优化 attention 计算和访存。
-- CUDA Graph：降低重复执行路径的调度和 launch 开销。
-- PagedAttention：管理 KV Cache 显存块。
-- Prefix Cache：减少重复 Prefill。
-- Dynamic Batching 和 Continuous Batching：提升调度效率。
-- Speculative Decoding：减少目标模型 Decode 步数。
+讨论重点：同样是 LLM 服务，为什么代码补全更怕入口排队和路由错误？这个问题只需要从架构职责回答，不需要进入指标和优化参数。
 
-理解推理流程之后，性能优化就不再是盲目试参数，而是一个可观察、可定位、可验证的工程过程。
+### 补充案例 B：多租户 API 平台为什么不能只有一个队列
+
+另一个场景是对外提供 LLM API。免费用户、付费用户、企业用户共用一组模型服务。如果所有请求进同一个队列，免费用户的大批量测试可能拖慢企业用户的生产请求。
+
+架构图里应该显式画出租户识别、配额、优先级和队列隔离：
+
+```text
+API Gateway
+  -> Tenant / Quota
+  -> Priority Queues
+  -> Scheduler
+  -> Worker Pool
+```
+
+课堂讨论：优先级队列应该放在 Gateway 里，还是 Scheduler 里？答案不必唯一，但必须说清楚组件职责。
+
+## 1.11 常见误区
+
+误区一：把模型推理等同于模型 forward。
+
+forward 只是 Worker/Runtime/GPU 这一段。在线服务还包括 Gateway、Scheduler、队列、流式返回、资源预算和观测系统。性能问题常常出现在模型 forward 之外。
+
+误区二：认为 GPU 利用率高就代表架构健康。
+
+GPU 利用率高只能说明 GPU 忙。它不能说明请求是否排队过久、是否牺牲了尾部延迟，也不能说明 Worker 是否在有效处理目标 workload。
+
+误区三：一开始就比较框架跑分。
+
+框架跑分要放在 workload 和架构约束里看。Agent 工作流、本地推理、高流量单模型 API、多租户平台，适合的框架取向不一样。
+
+误区四：把第 1 章就写成优化技术清单。
+
+本章只回答“系统长什么样”。Prefill、Decode、KV Cache、Batching、PagedAttention、Speculative Decoding 都会在后续章节展开。提前把细节塞进来，反而会让架构主线变乱。
+
+![第 1 章与后续章节的边界](figures/fig01-10_chapter_boundary.svg)
+
+图1-10：第 1 章与后续章节的边界。
+
+## 本章总结
+
+本章建立了 LLM 推理系统的第一张地图。
+
+一个在线推理系统至少包含 Client、Gateway、Scheduler、Worker、Runtime 和 GPU。Client 提出请求，Gateway 管入口和路由，Scheduler 管请求什么时候执行，Worker 持有模型和执行状态，Runtime 把计算提交给硬件，GPU 承担模型权重、KV Cache 和 kernel 执行压力。
+
+架构视图的价值在于定位责任。用户觉得慢，不一定是 GPU 算得慢；吞吐上不去，也不一定是模型不够小。你要先判断问题落在哪一层，再进入指标、Benchmark、Profiling 和优化。
+
+下一章会沿着这个架构继续往里走：一个请求进入系统后，如何经历 Queue、Prefill、Decode、Response 和 KV Cache 生命周期。
+
+### 本章 Checklist
+
+- [ ] 能画出 Client -> Gateway -> Scheduler -> Worker -> Runtime -> GPU 的链路。
+- [ ] 能说明 Gateway 不负责模型计算，但会影响入口等待和路由。
+- [ ] 能说明 Scheduler 为什么是 LLM Serving 的核心组件。
+- [ ] 能区分 Worker、Runtime 和 GPU 的职责。
+- [ ] 能比较 vLLM、SGLang、TensorRT-LLM、Llama.cpp 的架构取向。
+- [ ] 能说明本章 Demo 只验证最小服务架构，不做性能结论。
 
 ## 课后练习
 
-1. 用自己的话画出一次 LLM 请求的生命周期。
-2. 分别解释 Prefill 和 Decode 的输入、输出和主要开销。
-3. 运行本章 demo，标注输出中的原始 prompt、首个流式 chunk、后续 chunk 和 usage 字段。
-4. 写一段 200 字以内的说明：这次请求的哪个部分对应 Prefill，哪个部分对应 Decode，KV Cache 在哪里被创建和继续使用。
-
-## 自检清单
-
-- [ ] 能说明一次请求从 prompt 到完整回答的流程。
-- [ ] 能解释 Prefill 为什么影响 TTFT。
-- [ ] 能解释 Decode 为什么影响 ITL。
-- [ ] 能说明 KV Cache 的作用和生命周期。
-- [ ] 能区分 TTFT、ITL、TPS。
-- [ ] 能初步判断 compute bound 和 memory bound。
-- [ ] 能根据 demo 输出标注请求生命周期阶段。
+1. 画出你正在使用的一个 LLM 应用背后的推理系统架构，至少标出 Client、Gateway、Scheduler、Worker、Runtime 和 GPU。
+2. 选择 vLLM、SGLang、TensorRT-LLM、Llama.cpp 中两个框架，用 200 字以内比较它们的架构取向。
+3. 运行本章 Demo，标注输出中哪些字段来自客户端观察，哪些字段说明请求已经进入模型服务。
+4. 假设一个用户反馈“并发一上来就慢”，写出你会先检查的三个架构位置，不需要给出优化方案。
+5. 课堂讨论：把“企业问答服务”案例改成“代码补全服务”，哪些组件不变，哪些组件的优先级会变化？

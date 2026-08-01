@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <rect width="1280" height="720" fill="#fff"/><text x="64" y="72" font-family="Arial, sans-serif" font-size="34" fill="#111">Scheduler 的核心职责</text>
+  <g fill="none" stroke="#222" stroke-width="3">
+    <rect x="90" y="170" width="230" height="310" rx="8"/><rect x="500" y="170" width="260" height="310" rx="8"/><rect x="940" y="170" width="220" height="310" rx="8"/>
+    <path d="M320 325h180M760 325h180"/><path d="M485 310l20 15-20 15M925 310l20 15-20 15"/>
+    <line x1="545" y1="250" x2="715" y2="250"/><line x1="545" y1="325" x2="715" y2="325"/><line x1="545" y1="400" x2="715" y2="400"/>
+  </g>
+  <g font-family="Arial, sans-serif" fill="#111" text-anchor="middle">
+    <text x="205" y="220" font-size="26">Waiting Requests</text><text x="630" y="220" font-size="26">Scheduler</text><text x="1050" y="220" font-size="26">Running Batch</text>
+    <text x="630" y="285" font-size="21">Queue</text><text x="630" y="360" font-size="21">Budget</text><text x="630" y="435" font-size="21">Fairness</text>
+  </g>
+  <text x="64" y="630" font-family="Arial, sans-serif" font-size="24" fill="#111">Key Takeaway: Scheduler 决定请求如何共享 GPU、batch slot 和 KV Cache。</text>
+</svg>

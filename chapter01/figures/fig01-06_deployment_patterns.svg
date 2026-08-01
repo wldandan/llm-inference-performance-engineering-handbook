@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <rect width="1280" height="720" fill="#fff"/><text x="64" y="72" font-family="Arial, sans-serif" font-size="34" fill="#111">部署形态演进</text>
+  <g fill="none" stroke="#222" stroke-width="3">
+    <rect x="80" y="180" width="230" height="230" rx="8"/><rect x="370" y="180" width="230" height="230" rx="8"/><rect x="660" y="180" width="230" height="230" rx="8"/><rect x="950" y="180" width="230" height="230" rx="8"/>
+    <path d="M310 295h60M600 295h60M890 295h60"/>
+  </g>
+  <g font-family="Arial, sans-serif" fill="#111" text-anchor="middle">
+    <text x="195" y="245" font-size="25">单实例</text><text x="485" y="245" font-size="25">单模型多实例</text><text x="775" y="245" font-size="25">多模型服务</text><text x="1065" y="245" font-size="25">平台化服务</text>
+    <text x="195" y="320" font-size="20">易调试</text><text x="485" y="320" font-size="20">可扩容</text><text x="775" y="320" font-size="20">共享 GPU</text><text x="1065" y="320" font-size="20">统一治理</text>
+  </g>
+  <text x="64" y="630" font-family="Arial, sans-serif" font-size="24" fill="#111">Key Takeaway: 部署形态越复杂，资源利用率空间越大，控制面和观测成本也越高。</text>
+</svg>

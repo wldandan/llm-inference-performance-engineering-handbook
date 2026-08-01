@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <rect width="1280" height="720" fill="#fff"/><text x="64" y="72" font-family="Arial, sans-serif" font-size="34" fill="#111">推理框架架构取向对比</text>
+  <g fill="none" stroke="#222" stroke-width="3">
+    <rect x="95" y="150" width="250" height="310" rx="8"/><rect x="375" y="150" width="250" height="310" rx="8"/><rect x="655" y="150" width="250" height="310" rx="8"/><rect x="935" y="150" width="250" height="310" rx="8"/>
+  </g>
+  <g font-family="Arial, sans-serif" fill="#111">
+    <text x="220" y="210" font-size="30" text-anchor="middle">vLLM</text><text x="500" y="210" font-size="30" text-anchor="middle">SGLang</text><text x="780" y="210" font-size="30" text-anchor="middle">TensorRT-LLM</text><text x="1060" y="210" font-size="30" text-anchor="middle">Llama.cpp</text>
+    <text x="125" y="285" font-size="20">通用 GPU Serving</text><text x="125" y="330" font-size="20">调度与 KV 管理</text>
+    <text x="405" y="285" font-size="20">结构化生成</text><text x="405" y="330" font-size="20">Agent / 前缀复用</text>
+    <text x="685" y="285" font-size="20">编译与 engine</text><text x="685" y="330" font-size="20">NVIDIA 高效率</text>
+    <text x="965" y="285" font-size="20">CPU / Metal / 边缘</text><text x="965" y="330" font-size="20">量化与本地推理</text>
+  </g>
+  <text x="64" y="630" font-family="Arial, sans-serif" font-size="24" fill="#111">Key Takeaway: 框架选择是架构取舍，不是单纯跑分排序。</text>
+</svg>

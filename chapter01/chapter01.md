@@ -6,6 +6,7 @@
 
 - 画出一个在线 LLM 推理系统的基本架构。
 - 解释 Client、Gateway、Scheduler、Worker、Runtime 与 GPU 的职责边界。
+- 说清楚 Client、Gateway、Scheduler、Worker、Runtime、GPU 和 Response 各自接收什么、产出什么。
 - 说明为什么 LLM 推理服务不能只看模型本身，还要看队列、调度、运行时和硬件资源。
 - 比较 vLLM、SGLang、TensorRT-LLM 与 Llama.cpp 在架构取向上的差异。
 - 用一次最小 Demo 观察“客户端请求是否成功进入推理服务，并由哪个模型后端返回结果”。
@@ -19,7 +20,8 @@
 1. LLM 推理系统长什么样？
 2. 一个在线请求进入服务后，会经过哪些系统组件？
 3. Scheduler、Worker、Runtime、GPU 分别管什么？
-4. 为什么不同推理框架的架构取向会影响性能优化方式？
+4. 每个组件的输入和输出分别是什么？
+5. 为什么不同推理框架的架构取向会影响性能优化方式？
 
 ![LLM 推理系统全局架构](figures/fig01-01_inference_system_architecture.svg)
 
@@ -101,6 +103,31 @@ GPU 是计算资源，但不是孤立资源。推理系统里同时占用 GPU �
 ![Worker Runtime GPU 分层](figures/fig01-04_worker_runtime_gpu.svg)
 
 图1-4：Worker、Runtime 与 GPU 的分层关系。
+
+### 1.4.1 组件输入与输出
+
+把组件职责说清楚以后，还要继续问一个更工程化的问题：这个组件接收什么，产出什么。输入和输出不是为了画更复杂的图，而是为了在排障时知道应该看哪类日志、状态和指标。
+
+下表给出第 1 章需要掌握的架构级输入输出。这里先不展开 Prefill、Decode、KV Cache 的完整生命周期；这些会在第 2 章继续讲。
+
+| 组件 | 主要输入 | 主要输出 | 边界说明 |
+|---|---|---|---|
+| Client | 用户问题、业务上下文、请求参数、会话状态 | HTTP/gRPC/RPC 请求，或接收到的普通/流式响应 | Client 负责发起和消费结果，不负责服务端调度和模型执行 |
+| Gateway | 外部请求、模型名、租户身份、鉴权信息、限流和路由配置 | 校验后的内部请求、路由目标、拒绝/限流响应、入口日志 | Gateway 决定请求能否进入系统，以及进入哪个模型服务入口 |
+| Scheduler | 待执行请求队列、运行中请求状态、Worker 可用状态、GPU/KV Cache 资源状态、调度策略 | batch plan、dispatch plan、等待/抢占/拒绝决策 | Scheduler 输出的是执行计划，不是模型结果 |
+| Worker | Scheduler 下发的执行计划、batch metadata、模型权重、请求执行状态 | Runtime 调用、token 结果、请求状态更新、资源占用更新 | Worker 是执行单元，负责把调度计划转成实际模型执行 |
+| Runtime | Worker 传入的模型输入、batch metadata、KV Cache 句柄、采样参数、执行配置 | GPU kernel/graph/engine 调用、logits、采样 token、运行时状态 | Runtime 是框架执行层，例如 vLLM、SGLang、TensorRT-LLM 的底层执行路径 |
+| GPU | Runtime 提交的 kernel、模型权重、activation、KV Cache、临时工作区 | 计算结果、显存状态变化、kernel timeline、硬件计数器 | GPU 提供计算和显存资源，但不理解业务请求 |
+| Response | Worker/Runtime 产出的 token、结束原因、usage 信息、错误状态 | 返回给 Client 的普通响应或 streaming chunks | Response 是服务结果的封装和传输，不等于模型内部计算 |
+
+以 Scheduler 和 Worker 为例，两者最容易混在一起。Scheduler 的输入是“队列、运行中请求、资源状态和策略”，输出是“下一轮让谁执行、组成什么 batch、分配给哪个 Worker”。Worker 的输入是这个执行计划和模型执行所需状态，输出才是 token、状态更新和 Runtime 调用结果。
+
+所以，当一个请求变慢时，问题可以按输入输出拆开看：
+
+- Gateway 已经输出内部请求了吗？如果没有，先看鉴权、限流、路由和入口日志。
+- Scheduler 已经输出 dispatch plan 了吗？如果没有，先看队列、优先级、batch 预算和可用 Worker。
+- Worker 已经开始执行了吗？如果没有，先看 Worker 是否空闲、模型是否加载、KV Cache 是否够用。
+- Runtime / GPU 已经返回计算结果了吗？如果没有，才继续看 kernel、显存、硬件利用率和框架执行路径。
 
 ## 1.5 模型服务内部的三类状态
 
@@ -357,6 +384,7 @@ GPU 利用率高只能说明 GPU 忙。它不能说明请求是否排队过久�
 - [ ] 能画出 Client -> Gateway -> Scheduler -> Worker -> Runtime -> GPU 的链路。
 - [ ] 能说明 Gateway 不负责模型计算，但会影响入口等待和路由。
 - [ ] 能说明 Scheduler 为什么是 LLM Serving 的核心组件。
+- [ ] 能说出每个核心组件的输入和输出。
 - [ ] 能区分 Worker、Runtime 和 GPU 的职责。
 - [ ] 能比较 vLLM、SGLang、TensorRT-LLM、Llama.cpp 的架构取向。
 - [ ] 能说明本章 Demo 只验证最小服务架构，不做性能结论。

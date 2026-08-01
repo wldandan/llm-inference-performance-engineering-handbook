@@ -85,6 +85,37 @@ Concurrency 设计 影响队列、batch 形成、GPU 利用率和尾延迟。并
 
 Demo：设计一次最小 Benchmark 把本章方法落到一个可执行动作里。本章 Demo 使用模拟或最小化数据时，必须明确说明边界：它用于展示方法，不作为真实硬件性能结论。
 
+本章 Demo 可以设计成一张 Benchmark Plan，而不是立刻追求完整压测平台。输入固定为一个 OpenAI-compatible LLM 服务，输出是一份实验计划表。
+
+示例输入：
+
+```text
+模型：Qwen2.5-7B-Instruct
+框架：vLLM
+硬件：单张 A100 80GB
+场景：企业问答在线服务
+问题：当前 baseline 在交互式问答 workload 下是否稳定？
+```
+
+示例 workload：
+
+| 组别 | Prompt tokens | Output tokens | Concurrency | 请求数 | 回答问题 |
+|---|---:|---:|---:|---:|---|
+| A | 256 | 128 | 1 / 4 / 8 | 100 | 单轮短问答的基础延迟 |
+| B | 1024 | 128 | 1 / 4 / 8 | 100 | 长上下文对 TTFT 的影响 |
+| C | 512 | 512 | 1 / 4 / 8 | 100 | 长输出对 TPOT 和 TPS 的影响 |
+
+预期输出不是“哪个组最快”，而是：
+
+```text
+Baseline v0:
+  workload A/B/C 均完成 warmup 和 3 次 repeat
+  每组输出 TTFT、TPOT、TPS、P95/P99、GPU memory
+  记录环境版本和异常值
+  不跨 workload 比较单一指标
+```
+
+这个 Demo 的课堂重点，是让学员意识到 Benchmark Design 先于 Benchmark Tool。工具可以换，计划不能省。
 
 ## 5.9 课堂案例：同一个模型为什么跑出两份结论
 
@@ -106,6 +137,26 @@ Demo：设计一次最小 Benchmark 把本章方法落到一个可执行动作�
 模型版本相同但 tokenizer、max_model_len 和采样参数不同，Benchmark 结论不能直接比较。
 
 讨论重点：哪些结论仍然成立，哪些必须重新验证？
+
+### 贯穿案例：企业问答服务的 Baseline 合同
+
+假设企业问答服务准备进入优化阶段。业务方反馈“最近慢了”，平台方希望先建立 Baseline。你可以把第 5 章的方法落成一份合同：
+
+```text
+Baseline Contract:
+  目标：建立企业问答在线服务优化前 baseline
+  模型：Qwen2.5-7B-Instruct
+  场景：交互式问答，不覆盖离线批量总结
+  Prompt 分布：P50=500 tokens, P95=1800 tokens
+  Output 分布：P50=120 tokens, P95=350 tokens
+  并发梯度：1, 4, 8, 16, 32
+  Warmup：每组先跑 30 个请求，结果丢弃
+  Repeat：每组重复 3 次
+  指标：TTFT, TPOT, TPS, RPS, P95/P99, GPU memory
+  边界：不用于评价长文档总结、Agent 多轮调用和离线批处理
+```
+
+这个合同不是最终答案，但它能阻止一个常见争论：A 同学拿短问答吞吐说系统健康，B 同学拿长上下文 TTFT 说系统很慢。合同把“我们到底在测什么”写清楚，后续优化才有共同参照。
 
 ![demo_benchmark_plan](figures/fig05-09_demo_benchmark_plan.svg)
 

@@ -16,6 +16,8 @@
 
 本章已包含主课堂案例、补充案例 A/B 和讨论题，用于支撑 20 分钟以上讲授。案例服务本章边界，不替代后续实战验证。
 
+已进一步补充 Performance Diagnosis 半成品表和 Part 2 四章贯穿案例，能把 Benchmark、Profiling、Root Cause 和 Diagnosis 串成闭环。
+
 ## 内容缺口
 
 后续可根据真实授课环境补充固定模型、硬件、框架版本和实际 profile 样例。

@@ -85,6 +85,21 @@ Checklist 的结果要转成行动优先级。能快速排除的先排除，影�
 
 Demo 的目标是填写一份 Performance Diagnosis 表。它要求记录现象、影响范围、已检查层级、初步判断、证据和下一步动作，而不是直接写“建议调大 batch”。
 
+下面是一份课堂可用的半成品表。教师可以先隐藏“初步判断”和“下一步”，让学员根据证据填写。
+
+| 字段 | 内容 |
+|---|---|
+| 事件 | 企业问答服务，周一 10:00 后 P95 TTFT 告警 |
+| 影响范围 | 主要影响知识库长上下文问答，短 FAQ 请求影响较小 |
+| 指标变化 | P95 TTFT 明显升高，TPOT 小幅变化，错误率稳定 |
+| Gateway | 无明显 4xx / 5xx，路由到正确模型 |
+| Admission / Queue | waiting queue 上升，高峰期更明显 |
+| Engine Scheduler | 平均 batched tokens 下降，Prefill 请求等待变长 |
+| Worker / GPU | GPU util 有空洞，显存未打满 |
+| 初步判断 | 更像长 prompt 引发的 Prefill 与 queue 耦合问题 |
+| 下一步 | 分离长短 prompt workload，复跑 Chapter 5 Baseline，并采集 Chapter 6 Timeline |
+
+这份表刻意不写优化动作。它的输出是“下一步验证什么”，不是“立刻调什么参数”。等验证动作证明根因后，才进入 Prefill、Serving 或 Scalability 的优化章节。
 
 ## 8.9 课堂案例：线上告警后 15 分钟内该看什么
 
@@ -106,6 +121,26 @@ TPOT 变差但 TTFT 正常，优先看 Decode、KV Cache 读取和 memory bandwi
 GPU Utilization 低时不直接下结论，要同时看队列、batch、CPU、网络和 worker 健康状态。
 
 讨论重点：哪些结论仍然成立，哪些必须重新验证？
+
+### 贯穿案例：把 Part 2 四章串起来
+
+企业问答服务的案例可以串起 Part 2 的四章：
+
+```text
+Chapter 5:
+  先建立企业问答 baseline，明确 prompt/output 分布、并发梯度和指标口径。
+
+Chapter 6:
+  告警发生后，按轻量到深度的顺序选择工具，不直接进入 kernel profiling。
+
+Chapter 7:
+  把 TTFT、queue、prefill time、GPU util 等证据连成候选根因表。
+
+Chapter 8:
+  用 Performance Diagnosis 表沉淀事件、影响范围、已检查项和下一步验证动作。
+```
+
+这条贯穿案例说明 Part 2 的定位：它不是优化技术集合，而是优化之前的证据生产线。只有这条线跑通，后续 Part 3 到 Part 6 的优化方法才不会变成拍脑袋调参。
 
 ![demo_checklist](figures/fig08-09_demo_checklist.svg)
 

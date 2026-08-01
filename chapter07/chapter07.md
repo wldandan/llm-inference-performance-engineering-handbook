@@ -85,6 +85,40 @@ Root Cause 假设通常来自指标组合，而不是单个指标。TTFT 高但 
 
 Demo 的目标是把异常结果写成根因链：现象是什么，证据来自哪里，排除了什么，剩下哪些候选根因，下一步如何验证。它训练的是分析表达，而不是调参技巧。
 
+可以给学员一组模拟证据：
+
+```text
+现象：
+  并发 16 以后，P95 TTFT 从 900 ms 升到 2600 ms
+  TPOT 从 42 ms 变为 45 ms，变化不大
+
+服务端：
+  waiting queue 上升
+  running requests 没有明显增加
+  long prompt 请求比例从 20% 升到 55%
+
+GPU：
+  util 波动较大
+  memory used 稳定在 70GB / 80GB
+
+初步 profile：
+  prefill time 上升
+  decode loop 没有明显异常
+```
+
+学员需要把它写成根因链：
+
+```text
+现象：P95 TTFT 升高，TPOT 基本稳定。
+范围：并发 16 以上、长 prompt 请求更明显。
+证据：queue 上升、long prompt 比例上升、prefill time 上升。
+排除：显存未接近上限，Decode TPOT 没明显恶化。
+候选根因：长 prompt 增多导致 Prefill 和 queue 耦合，短请求被排队。
+验证动作：分离长短 prompt workload，固定并发，分别观察 TTFT 和 prefill time。
+边界：当前结论不覆盖长 output 和多轮 Agent 请求。
+```
+
+这个 Demo 的价值在于把“我觉得是 Prefill”改写成“证据更支持 Prefill 与队列耦合”。后者才是能进入下一篇优化章节的输入。
 
 ## 7.9 课堂案例：TPS 下降到底是谁的锅
 
@@ -106,6 +140,20 @@ P99 TTFT 突然升高，但平均 TTFT 变化不大，根因可能在队列尾�
 GPU Utilization 很高但 TPS 不升，可能是无效忙，也可能是 memory-bound kernel。
 
 讨论重点：哪些结论仍然成立，哪些必须重新验证？
+
+### 贯穿案例：从告警到根因假设
+
+企业问答服务的告警经过第 6 章工具选择后，已经拿到三类证据：客户端 TTFT 变差、队列上升、Prefill 时间上升。第 7 章要做的是把这些证据连成可验证假设，而不是直接说“优化 Prefill”。
+
+可以列出三个候选根因：
+
+| 候选根因 | 支持证据 | 反证或缺口 | 下一步验证 |
+|---|---|---|---|
+| 长 prompt 增多导致 Prefill 压力上升 | long prompt 比例上升，Prefill 时间上升 | 还没分离长短请求 | 分组 benchmark |
+| Scheduler batch 形成效率下降 | queue 上升，GPU util 有空洞 | 缺 batch token 明细 | 采集 engine scheduler profile |
+| CPU tokenizer 阻塞 | GPU 有空洞 | 缺 CPU profile | 打开 PyTorch / CPU profile |
+
+这张表的作用，是把讨论从“谁猜得对”变成“哪个假设证据最多、验证成本最低”。Root Cause Analysis 不是一次性找到唯一答案，而是用证据给下一步实验排序。
 
 ![demo_root_cause_report](figures/fig07-09_demo_root_cause_report.svg)
 

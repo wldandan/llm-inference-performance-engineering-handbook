@@ -85,6 +85,47 @@ Nsight Compute 面向单个 kernel 的深入分析。它适合在已经定位到
 
 Demo 的目标是演示工具选择路径。先观察客户端延迟和服务端日志，再看 nvidia-smi 和框架指标；只有当证据指向 GPU 执行路径时，才引入 Nsight Systems 或 Nsight Compute。
 
+可以把 Demo 设计成三轮观察。
+
+第一轮只看轻量指标：
+
+```text
+客户端：
+  TTFT P95 = 1800 ms
+  TPOT avg = 38 ms
+  error rate = 0
+
+服务端：
+  queue length = rising
+  running requests = stable
+
+nvidia-smi:
+  GPU util = 42%
+  memory used = 62GB / 80GB
+```
+
+此时不能直接打开 Nsight Compute，因为证据还没有指向单个 kernel。更合理的下一步是看框架内的 batch 和 scheduler 状态。
+
+第二轮看 engine profiling：
+
+```text
+vLLM / engine profile:
+  waiting requests increased
+  average batched tokens lower than expected
+  prefill requests frequently delayed
+```
+
+这说明问题更接近 queue / scheduler / workload 组合，而不是 GPU 算子本身。
+
+第三轮才决定是否进入 Timeline：
+
+```text
+Nsight Systems:
+  CPU side gap before GPU kernels
+  GPU kernels are short but launch intervals large
+```
+
+课堂讨论：这时应该继续深入 Nsight Compute，还是回头检查 CPU、Scheduler 和请求分布？这能训练学员根据证据选工具，而不是根据工具名选工具。
 
 ## 6.9 课堂案例：GPU 利用率低时先开什么工具
 
@@ -106,6 +147,32 @@ CPU 占用高但 GPU 空闲时，PyTorch Profiler 或服务层日志可能比 GP
 一次深度 Profiling 会改变系统开销，课堂讨论应说明何时在生产旁路采样，何时在复现实验环境采样。
 
 讨论重点：哪些结论仍然成立，哪些必须重新验证？
+
+### 贯穿案例：同一个告警的工具升级路径
+
+继续使用企业问答服务。线上告警说 P95 TTFT 上升，但错误率没有变化。工具选择可以这样升级：
+
+```text
+Step 1: Gateway / access log
+  确认请求已经进入正确模型，没有大量 4xx / 5xx。
+
+Step 2: client metrics
+  确认 TTFT 变差是否稳定，TPOT 是否同时变差。
+
+Step 3: nvidia-smi / dashboard
+  确认 GPU 是否空闲、显存是否接近上限。
+
+Step 4: engine profiling
+  查看 queue、running requests、batch tokens、prefill/decode 时间。
+
+Step 5: Nsight Systems
+  当怀疑 CPU/GPU timeline 存在空洞时再打开。
+
+Step 6: Nsight Compute
+  只有当某个 kernel 被定位为核心耗时后才进入。
+```
+
+这条路径能让学员看到：Profiling Toolchain 是一套升级策略，不是一堆工具名。不同工具对应不同证据粒度，也对应不同成本。
 
 ![demo_tool_path](figures/fig06-09_demo_tool_path.svg)
 

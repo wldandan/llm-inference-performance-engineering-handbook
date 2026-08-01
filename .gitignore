@@ -1,6 +1,7 @@
 # Project-local Codex/agent instructions and skills
 AGENTS.md
 skills/
+.learnings/
 
 # Local OS/editor/cache files
 .DS_Store

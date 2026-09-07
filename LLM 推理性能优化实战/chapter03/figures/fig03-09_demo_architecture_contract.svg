@@ -1,9 +1,52 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
-  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0L10 5L0 10z" fill="#333"/></marker><style>.t{font:700 32px Arial,sans-serif;fill:#111}.b{fill:#fff;stroke:#222;stroke-width:2}.mid{fill:#f5f5f5;stroke:#222;stroke-width:2}.h{font:600 21px Arial,sans-serif;fill:#111;text-anchor:middle}.s{font:16px Arial,sans-serif;fill:#555;text-anchor:middle}.l{stroke:#333;stroke-width:2;marker-end:url(#a)}.take{font:600 20px Arial,sans-serif;fill:#222;text-anchor:middle}</style></defs>
-  <rect width="1280" height="720" fill="#fff"/><text x="64" y="72" class="t">Demo：把架构图变成可验证契约</text>
-  <rect x="70" y="175" width="300" height="310" rx="12" class="b"/><text x="220" y="220" class="h">reference-architecture.json</text><text x="220" y="275" class="s">components + roles</text><text x="220" y="315" class="s">deployment_unit</text><text x="220" y="355" class="s">request / response flows</text><text x="220" y="395" class="s">control / telemetry flows</text>
-  <rect x="490" y="175" width="300" height="310" rx="12" class="mid"/><text x="640" y="220" class="h">Contract Validator</text><text x="640" y="275" class="s">required roles</text><text x="640" y="315" class="s">unique IDs + known endpoints</text><text x="640" y="355" class="s">supported flow kinds</text><text x="640" y="395" class="s">complete request / response</text>
-  <rect x="910" y="175" width="300" height="310" rx="12" class="b"/><text x="1060" y="220" class="h">Architecture Report</text><text x="1060" y="275" class="s">request_path</text><text x="1060" y="315" class="s">response_path</text><text x="1060" y="355" class="s">deployment_units</text><text x="1060" y="395" class="s">role_contracts</text>
-  <line x1="370" y1="330" x2="486" y2="330" class="l"/><line x1="790" y1="330" x2="906" y2="330" class="l"/>
-  <rect x="120" y="575" width="1040" height="72" rx="10" fill="#f5f5f5" stroke="#aaa"/><text x="640" y="620" class="take">Key Takeaway：架构可以接受自动检查，而不只是一张静态图片</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="fig-title fig-desc" data-figure-system="chapter03-v2" fill="#0F172A">
+  <title id="fig-title">图 3-9 架构契约 Demo</title>
+  <desc id="fig-desc">展示 reference architecture JSON 经过角色、连线与路径三层校验，输出请求路径、响应路径和部署单元报告。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0L10 5L0 10Z" fill="#334155"/></marker>
+    <style>
+      text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+      .kicker{font-size:14px;font-weight:700;letter-spacing:2px;fill:#64748B}.title{font-size:32px;font-weight:750}.subtitle{font-size:16px;fill:#64748B}
+      .panel{fill:#FFFFFF;stroke:#CBD5E1;stroke-width:1.8}.head{fill:#0F172A}.head-title{font-size:20px;font-weight:750;fill:#FFFFFF}.head-note{font-size:14px;fill:#CBD5E1}.label{font-size:14px;font-weight:750;letter-spacing:1px;fill:#64748B}
+      .code{font-family:"SFMono-Regular",Consolas,"Liberation Mono","PingFang SC",monospace;font-size:14px;fill:#334155}.gate{fill:#F1F5F9;stroke:#CBD5E1;stroke-width:1.3}.gate-num{fill:#0F172A}.gate-num-text{font-size:14px;font-weight:750;fill:#FFFFFF}.gate-title{font-size:16px;font-weight:750}.gate-note{font-size:14px;fill:#64748B}
+      .report{fill:#F8FAFC;stroke:#CBD5E1;stroke-width:1.3}.report-key{font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:14px;font-weight:700}.report-note{font-size:14px;fill:#64748B}
+      .flow{fill:none;stroke:#334155;stroke-width:2.5;marker-end:url(#arrow)}.flow-label{font-size:14px;font-weight:700;fill:#475569}.ok{fill:#E2E8F0}.ok-text{font-size:14px;font-weight:750;fill:#475569}
+      .take-bg{fill:#0F172A}.take-label{font-size:14px;font-weight:700;letter-spacing:1px;fill:#CBD5E1}.take{font-size:19px;font-weight:650;fill:#FFFFFF}
+    </style>
+  </defs>
+  <rect width="1280" height="720" fill="#F8FAFC"/>
+  <text class="kicker" x="56" y="46">EXECUTABLE ARCHITECTURE · 09</text>
+  <text class="title" x="56" y="84">Demo：把静态架构图变成可验证契约</text>
+  <text class="subtitle" x="56" y="114">输入不是图片，而是组件、角色、部署单元和连线构成的结构化事实</text>
+
+  <g transform="translate(64 168)">
+    <rect class="panel" width="304" height="420" rx="20"/><path class="head" d="M20 0H284Q304 0 304 20V82H0V20Q0 0 20 0Z"/>
+    <text class="head-title" x="24" y="35" fill="#FFFFFF">输入：Architecture JSON</text><text class="head-note" x="24" y="62" fill="#CBD5E1">reference-architecture.json</text>
+    <text class="label" x="24" y="120">COMPONENTS</text><text class="code" x="24" y="150">id: gateway</text><text class="code" x="24" y="176">role: gateway</text><text class="code" x="24" y="202">deployment_unit: api-process</text>
+    <line x1="24" y1="228" x2="280" y2="228" stroke="#E2E8F0"/>
+    <text class="label" x="24" y="260">FLOWS</text><text class="code" x="24" y="290">kind: request</text><text class="code" x="24" y="316">from: gateway</text><text class="code" x="24" y="342">to: router</text>
+    <rect class="ok" x="24" y="366" width="256" height="32" rx="16"/><text class="ok-text" x="152" y="388" text-anchor="middle">request · response · control · telemetry</text>
+  </g>
+
+  <g transform="translate(456 168)">
+    <rect class="panel" width="368" height="420" rx="20"/><path class="head" d="M20 0H348Q368 0 368 20V82H0V20Q0 0 20 0Z"/>
+    <text class="head-title" x="24" y="35" fill="#FFFFFF">校验：Contract Validator</text><text class="head-note" x="24" y="62" fill="#CBD5E1">失败即指出具体契约错误</text>
+    <g transform="translate(24 112)"><rect class="gate" width="320" height="78" rx="14"/><circle class="gate-num" cx="28" cy="28" r="17"/><text class="gate-num-text" x="28" y="33" text-anchor="middle" fill="#FFFFFF">1</text><text class="gate-title" x="58" y="29">角色与 ID</text><text class="gate-note" x="58" y="55">Required Roles · Unique IDs</text></g>
+    <g transform="translate(24 208)"><rect class="gate" width="320" height="78" rx="14"/><circle class="gate-num" cx="28" cy="28" r="17"/><text class="gate-num-text" x="28" y="33" text-anchor="middle" fill="#FFFFFF">2</text><text class="gate-title" x="58" y="29">连线与端点</text><text class="gate-note" x="58" y="55">Known Endpoints · Supported Kinds</text></g>
+    <g transform="translate(24 304)"><rect class="gate" width="320" height="78" rx="14"/><circle class="gate-num" cx="28" cy="28" r="17"/><text class="gate-num-text" x="28" y="33" text-anchor="middle" fill="#FFFFFF">3</text><text class="gate-title" x="58" y="29">请求与响应路径</text><text class="gate-note" x="58" y="55">Complete Request / Response Paths</text></g>
+  </g>
+
+  <g transform="translate(912 168)">
+    <rect class="panel" width="304" height="420" rx="20"/><path class="head" d="M20 0H284Q304 0 304 20V82H0V20Q0 0 20 0Z"/>
+    <text class="head-title" x="24" y="35" fill="#FFFFFF">输出：Architecture Report</text><text class="head-note" x="24" y="62" fill="#CBD5E1">可保存、比较和自动检查</text>
+    <g transform="translate(24 110)"><rect class="report" width="256" height="58" rx="12"/><text class="report-key" x="18" y="27">request_path</text><text class="report-note" x="18" y="47">Client → ... → Accelerator</text></g>
+    <g transform="translate(24 182)"><rect class="report" width="256" height="58" rx="12"/><text class="report-key" x="18" y="27">response_path</text><text class="report-note" x="18" y="47">Accelerator → ... → Client</text></g>
+    <g transform="translate(24 254)"><rect class="report" width="256" height="58" rx="12"/><text class="report-key" x="18" y="27">deployment_units</text><text class="report-note" x="18" y="47">role → process / device</text></g>
+    <g transform="translate(24 326)"><rect class="report" width="256" height="58" rx="12"/><text class="report-key" x="18" y="27">role_contracts</text><text class="report-note" x="18" y="47">role → responsibilities</text></g>
+  </g>
+
+  <path class="flow" d="M368 378H450"/><path d="M450 378l-11 -7v14z" fill="#334155"/><text class="flow-label" x="409" y="360" text-anchor="middle">读取</text>
+  <path class="flow" d="M824 378H906"/><path d="M906 378l-11 -7v14z" fill="#334155"/><text class="flow-label" x="865" y="360" text-anchor="middle">通过</text>
+
+  <rect class="take-bg" x="56" y="642" width="1168" height="54" rx="14"/>
+  <text class="take-label" x="80" y="675" fill="#CBD5E1">关键结论</text><text class="take" x="184" y="676" fill="#FFFFFF">架构可以接受自动检查，而不只是一张静态图片。</text>
 </svg>

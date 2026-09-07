@@ -63,8 +63,8 @@
 - [x] 成熟系统映射覆盖 Serving Platform、Inference Server 和 LLM Engine 三个层级，不形成产品排名。
 - [x] Demo 能校验角色、组件 ID、连线类型、连线端点以及请求和响应路径完整性。
 - [x] 旧 Chapter 3 的 GPU 正文插图被释放并完整保留到 Chapter 5 的迁移素材目录。
-- [x] Review、Storyboard 和 10 张 SVG 与新版章节目标一致。
-- [x] 13 项单元测试、章节结构校验、SVG 解析和原尺寸渲染检查通过。
+- [x] Review、Storyboard 和 10 张 v2 SVG 与新版章节目标一致，每张图均有制作说明。
+- [x] 13 项 Demo 单元测试、2 项插图契约测试、章节结构校验、SVG 解析和原尺寸渲染检查通过。
 
 ### 测试用例
 

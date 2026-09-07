@@ -1,21 +1,81 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="fig-title fig-desc" data-figure-system="chapter03-v2" fill="#0F172A">
+  <title id="fig-title">图 3-1 LLM 推理系统全局架构</title>
+  <desc id="fig-desc">展示请求从 Client 经过服务入口、流量决策和模型执行到达 Accelerator，并沿精简路径流式返回。</desc>
   <defs>
-    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0L10 5L0 10z" fill="#333"/></marker>
-    <style>.title{font:700 32px Arial,sans-serif;fill:#111}.box{fill:#fff;stroke:#222;stroke-width:2}.role{font:600 17px Arial,sans-serif;fill:#111;text-anchor:middle}.sub{font:15px Arial,sans-serif;fill:#555;text-anchor:middle}.req{stroke:#333;stroke-width:2;marker-end:url(#arrow)}.resp{fill:none;stroke:#666;stroke-width:2;stroke-dasharray:8 7;marker-end:url(#arrow)}.label{font:16px Arial,sans-serif;fill:#555}.take{font:600 20px Arial,sans-serif;fill:#222;text-anchor:middle}</style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0L10 5L0 10Z" fill="#334155"/></marker>
+    <marker id="arrow-muted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0L10 5L0 10Z" fill="#64748B"/></marker>
+    <style>
+      text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+      .kicker{font-size:14px;font-weight:700;letter-spacing:2px;fill:#64748B}.title{font-size:32px;font-weight:750}.subtitle{font-size:16px;fill:#64748B}
+      .group{fill:#F1F5F9;stroke:#CBD5E1;stroke-width:1.5}.group-label{font-size:15px;font-weight:700;fill:#475569;letter-spacing:1px}
+      .card{fill:#FFFFFF;stroke:#94A3B8;stroke-width:1.6}.card-strong{fill:#FFFFFF;stroke:#0F172A;stroke-width:2.2}
+      .num{fill:#0F172A}.num-text{font-size:14px;font-weight:700;fill:#FFFFFF}.role{font-size:18px;font-weight:750}.cn{font-size:14px;fill:#64748B}
+      .flow{fill:none;stroke:#334155;stroke-width:2.4;marker-end:url(#arrow)}.response{fill:none;stroke:#64748B;stroke-width:2.2;stroke-dasharray:8 7;marker-end:url(#arrow-muted)}
+      .lane{font-size:14px;font-weight:750;fill:#475569;letter-spacing:1px}.note{font-size:14px;fill:#64748B}.take-bg{fill:#0F172A}.take-label{font-size:14px;font-weight:700;letter-spacing:1px;fill:#CBD5E1}.take{font-size:19px;font-weight:650;fill:#FFFFFF}
+    </style>
   </defs>
-  <rect width="1280" height="720" fill="#fff"/><text x="64" y="72" class="title">LLM 推理系统全局架构</text>
-  <text x="48" y="190" class="label">Request Path</text>
-  <g>
-    <rect x="40" y="245" width="125" height="88" rx="8" class="box"/><text x="102" y="281" class="role">Client</text><text x="102" y="307" class="sub">business call</text>
-    <rect x="190" y="245" width="125" height="88" rx="8" class="box"/><text x="252" y="281" class="role">Gateway</text><text x="252" y="307" class="sub">protocol</text>
-    <rect x="340" y="245" width="125" height="88" rx="8" class="box"/><text x="402" y="281" class="role">Router</text><text x="402" y="307" class="sub">placement</text>
-    <rect x="490" y="245" width="125" height="88" rx="8" class="box"/><text x="552" y="281" class="role">Admission</text><text x="552" y="307" class="sub">accept / queue</text>
-    <rect x="640" y="245" width="125" height="88" rx="8" class="box"/><text x="702" y="281" class="role">Scheduler</text><text x="702" y="307" class="sub">iteration plan</text>
-    <rect x="790" y="245" width="125" height="88" rx="8" class="box"/><text x="852" y="281" class="role">Worker</text><text x="852" y="307" class="sub">model state</text>
-    <rect x="940" y="245" width="125" height="88" rx="8" class="box"/><text x="1002" y="281" class="role">Runtime</text><text x="1002" y="307" class="sub">operators</text>
-    <rect x="1090" y="245" width="150" height="88" rx="8" class="box"/><text x="1165" y="281" class="role">Accelerator</text><text x="1165" y="307" class="sub">GPU / device</text>
-    <line x1="165" y1="289" x2="186" y2="289" class="req"/><line x1="315" y1="289" x2="336" y2="289" class="req"/><line x1="465" y1="289" x2="486" y2="289" class="req"/><line x1="615" y1="289" x2="636" y2="289" class="req"/><line x1="765" y1="289" x2="786" y2="289" class="req"/><line x1="915" y1="289" x2="936" y2="289" class="req"/><line x1="1065" y1="289" x2="1086" y2="289" class="req"/>
-    <path d="M1165 333 V430 H252 V337" class="resp"/><text x="48" y="438" class="label">Response Path</text><text x="690" y="458" class="sub">result returns without repeating placement or admission</text>
+  <rect class="canvas" width="1280" height="720" fill="#F8FAFC"/>
+  <text class="kicker" x="56" y="46">SYSTEM MAP · 01</text>
+  <text class="title" x="56" y="84">LLM 推理系统全局架构</text>
+  <text class="subtitle" x="56" y="114">一条请求，两条方向：计算向右，结果沿精简路径向左返回</text>
+
+  <rect class="group" x="182" y="162" width="142" height="250" rx="18"/>
+  <rect class="group" x="336" y="162" width="442" height="250" rx="18"/>
+  <rect class="group" x="790" y="162" width="434" height="250" rx="18"/>
+  <text class="group-label" x="253" y="190" text-anchor="middle">服务入口</text>
+  <text class="group-label" x="557" y="190" text-anchor="middle">流量决策</text>
+  <text class="group-label" x="1007" y="190" text-anchor="middle">模型执行</text>
+  <text class="lane" x="56" y="218">请求路径</text>
+
+  <g transform="translate(56 226)">
+    <rect class="card-strong" width="114" height="148" rx="14"/>
+    <circle class="num" cx="22" cy="22" r="14"/><text class="num-text" x="22" y="27" text-anchor="middle" fill="#FFFFFF">1</text>
+    <text class="role" x="57" y="72" text-anchor="middle">Client</text><text class="cn" x="57" y="100" text-anchor="middle">业务调用</text>
   </g>
-  <rect x="120" y="575" width="1040" height="72" rx="10" fill="#f5f5f5" stroke="#aaa"/><text x="640" y="620" class="take">Key Takeaway：先固定逻辑责任，再决定进程和设备如何部署</text>
+  <g transform="translate(194 226)">
+    <rect class="card" width="118" height="148" rx="14"/><circle class="num" cx="22" cy="22" r="14"/><text class="num-text" x="22" y="27" text-anchor="middle" fill="#FFFFFF">2</text>
+    <text class="role" x="59" y="72" text-anchor="middle">Gateway</text><text class="cn" x="59" y="100" text-anchor="middle">协议入口</text>
+  </g>
+  <g transform="translate(348 226)">
+    <rect class="card" width="126" height="148" rx="14"/><circle class="num" cx="22" cy="22" r="14"/><text class="num-text" x="22" y="27" text-anchor="middle" fill="#FFFFFF">3</text>
+    <text class="role" x="63" y="72" text-anchor="middle">Router</text><text class="cn" x="63" y="100" text-anchor="middle">选择目标</text>
+  </g>
+  <g transform="translate(486 226)">
+    <rect class="card" width="126" height="148" rx="14"/><circle class="num" cx="22" cy="22" r="14"/><text class="num-text" x="22" y="27" text-anchor="middle" fill="#FFFFFF">4</text>
+    <text class="role" x="63" y="72" text-anchor="middle">Admission</text><text class="cn" x="63" y="100" text-anchor="middle">准入 / 排队</text>
+  </g>
+  <g transform="translate(624 226)">
+    <rect class="card" width="142" height="148" rx="14"/><circle class="num" cx="22" cy="22" r="14"/><text class="num-text" x="22" y="27" text-anchor="middle" fill="#FFFFFF">5</text>
+    <text class="role" x="71" y="68" text-anchor="middle">Engine</text><text class="role" x="71" y="92" text-anchor="middle">Scheduler</text><text class="cn" x="71" y="120" text-anchor="middle">生成迭代计划</text>
+  </g>
+  <g transform="translate(802 226)">
+    <rect class="card" width="118" height="148" rx="14"/><circle class="num" cx="22" cy="22" r="14"/><text class="num-text" x="22" y="27" text-anchor="middle" fill="#FFFFFF">6</text>
+    <text class="role" x="59" y="72" text-anchor="middle">Worker</text><text class="cn" x="59" y="100" text-anchor="middle">执行模型</text>
+  </g>
+  <g transform="translate(932 226)">
+    <rect class="card" width="118" height="148" rx="14"/><circle class="num" cx="22" cy="22" r="14"/><text class="num-text" x="22" y="27" text-anchor="middle" fill="#FFFFFF">7</text>
+    <text class="role" x="59" y="72" text-anchor="middle">Runtime</text><text class="cn" x="59" y="100" text-anchor="middle">下发算子</text>
+  </g>
+  <g transform="translate(1062 226)">
+    <rect class="card-strong" width="150" height="148" rx="14"/><circle class="num" cx="22" cy="22" r="14"/><text class="num-text" x="22" y="27" text-anchor="middle" fill="#FFFFFF">8</text>
+    <text class="role" x="75" y="68" text-anchor="middle">GPU /</text><text class="role" x="75" y="92" text-anchor="middle">Accelerator</text><text class="cn" x="75" y="120" text-anchor="middle">张量计算</text>
+  </g>
+
+  <path class="flow" d="M170 300H190"/><path d="M190 300l-9 -6v12z" fill="#334155"/>
+  <path class="flow" d="M312 300H344"/><path d="M344 300l-9 -6v12z" fill="#334155"/>
+  <path class="flow" d="M474 300H482"/><path d="M482 300l-9 -6v12z" fill="#334155"/>
+  <path class="flow" d="M612 300H620"/><path d="M620 300l-9 -6v12z" fill="#334155"/>
+  <path class="flow" d="M766 300H798"/><path d="M798 300l-9 -6v12z" fill="#334155"/>
+  <path class="flow" d="M920 300H928"/><path d="M928 300l-9 -6v12z" fill="#334155"/>
+  <path class="flow" d="M1050 300H1058"/><path d="M1058 300l-9 -6v12z" fill="#334155"/>
+
+  <text class="lane" x="56" y="458">响应路径</text>
+  <path class="response" d="M1137 376V486H253V378"/><path d="M253 378l-6 11h12z" fill="#64748B"/>
+  <path class="response" d="M253 486H113V378"/><path d="M113 378l-6 11h12z" fill="#64748B"/>
+  <circle cx="861" cy="486" r="5" fill="#64748B"/><text class="note" x="861" y="516" text-anchor="middle">Worker 产出 token / 状态</text>
+  <circle cx="253" cy="486" r="5" fill="#64748B"/><text class="note" x="420" y="516">Gateway 封装并流式返回</text>
+  <rect x="514" y="431" width="330" height="34" rx="17" fill="#FFFFFF" stroke="#CBD5E1"/><text class="note" x="679" y="453" text-anchor="middle">返回时不重复 Router 与 Admission 决策</text>
+
+  <rect class="take-bg" x="56" y="642" width="1168" height="54" rx="14"/>
+  <text class="take-label" x="80" y="675" fill="#CBD5E1">关键结论</text><text class="take" x="184" y="676" fill="#FFFFFF">先固定逻辑责任，再决定进程、Pod 和设备如何部署。</text>
 </svg>

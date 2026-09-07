@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#333"/></marker><style>.t{font:700 32px Arial,sans-serif;fill:#111}.b{fill:#fff;stroke:#222;stroke-width:2}.h{font:600 19px Arial,sans-serif;fill:#111;text-anchor:middle}.s{font:16px Arial,sans-serif;fill:#555;text-anchor:middle}.l{stroke:#333;stroke-width:2;marker-end:url(#a)}.d{stroke:#666;stroke-width:2;stroke-dasharray:8 7;marker-end:url(#a)}.take{font:600 21px Arial,sans-serif;fill:#222;text-anchor:middle}</style></defs>
+  <rect width="1280" height="720" fill="#fff"/><text x="64" y="72" class="t">Prefill 与首 token 的边界</text>
+  <text x="95" y="175" class="s">Server</text>
+  <rect x="90" y="220" width="150" height="82" rx="8" class="b"/><text x="165" y="269" class="h">scheduled</text>
+  <rect x="290" y="220" width="175" height="82" rx="8" class="b"/><text x="377" y="254" class="h">Prompt Compute</text><text x="377" y="281" class="s">Transformer</text>
+  <rect x="515" y="220" width="150" height="82" rx="8" class="b"/><text x="590" y="254" class="h">KV Cache</text><text x="590" y="281" class="s">created</text>
+  <rect x="715" y="220" width="140" height="82" rx="8" class="b"/><text x="785" y="269" class="h">Sampling</text>
+  <rect x="905" y="220" width="215" height="82" rx="8" class="b"/><text x="1012" y="254" class="h">First Token</text><text x="1012" y="281" class="s">generated · t3</text>
+  <line x1="240" y1="261" x2="286" y2="261" class="l"/><line x1="465" y1="261" x2="511" y2="261" class="l"/><line x1="665" y1="261" x2="711" y2="261" class="l"/><line x1="855" y1="261" x2="901" y2="261" class="l"/>
+  <line x1="1012" y1="302" x2="1012" y2="390" class="d"/><rect x="890" y="400" width="245" height="82" rx="8" class="b"/><text x="1012" y="434" class="h">First Chunk</text><text x="1012" y="461" class="s">received by client</text>
+  <text x="820" y="375" class="s">protocol + network</text>
+  <line x1="165" y1="350" x2="1012" y2="350" stroke="#777" stroke-width="2"/><text x="588" y="385" class="s">Prefill boundary: scheduled → first token generated</text>
+  <rect x="120" y="575" width="1040" height="72" rx="10" fill="#f5f5f5" stroke="#aaa"/><text x="640" y="620" class="take">Key Takeaway：首 token 已生成，不代表客户端已经收到首包</text>
+</svg>

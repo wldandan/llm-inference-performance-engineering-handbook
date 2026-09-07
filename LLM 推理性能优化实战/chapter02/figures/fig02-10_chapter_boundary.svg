@@ -1,13 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
-  <rect width="1280" height="720" fill="#fff"/><text x="64" y="72" font-family="Arial, sans-serif" font-size="34" fill="#111">第 1 章与后续章节的边界</text>
-  <g fill="none" stroke="#222" stroke-width="3">
-    <rect x="80" y="180" width="220" height="110" rx="8"/><rect x="360" y="180" width="220" height="110" rx="8"/><rect x="640" y="180" width="220" height="110" rx="8"/><rect x="920" y="180" width="220" height="110" rx="8"/>
-    <path d="M300 235h60M580 235h60M860 235h60"/>
-    <rect x="360" y="410" width="500" height="90" rx="8"/>
-  </g>
-  <g font-family="Arial, sans-serif" fill="#111" text-anchor="middle">
-    <text x="190" y="245" font-size="23">第 1 章 架构</text><text x="470" y="245" font-size="23">第 2 章 生命周期</text><text x="750" y="245" font-size="23">第 3 章 指标</text><text x="1030" y="245" font-size="23">后续 分析与优化</text>
-    <text x="610" y="465" font-size="23">本章只回答：系统长什么样？</text>
-  </g>
-  <text x="64" y="630" font-family="Arial, sans-serif" font-size="24" fill="#111">Key Takeaway: 架构、生命周期、指标、优化分章展开，避免第一章过载。</text>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#333"/></marker><style>.t{font:700 32px Arial,sans-serif;fill:#111}.b{fill:#fff;stroke:#222;stroke-width:2}.focus{fill:#f2f2f2;stroke:#111;stroke-width:3}.h{font:600 20px Arial,sans-serif;fill:#111;text-anchor:middle}.s{font:16px Arial,sans-serif;fill:#555;text-anchor:middle}.l{stroke:#333;stroke-width:2;fill:none;marker-end:url(#a)}.take{font:600 21px Arial,sans-serif;fill:#222;text-anchor:middle}</style></defs>
+  <rect width="1280" height="720" fill="#fff"/><text x="64" y="72" class="t">Chapter 2 与后续章节边界</text>
+  <rect x="70" y="275" width="210" height="110" rx="10" class="b"/><text x="175" y="318" class="h">Chapter 1</text><text x="175" y="350" class="s">Run the Service</text>
+  <line x1="280" y1="330" x2="385" y2="330" class="l"/>
+  <rect x="390" y="245" width="260" height="170" rx="12" class="focus"/><text x="520" y="302" class="h">Chapter 2</text><text x="520" y="338" class="h">Inference Lifecycle</text><text x="520" y="372" class="s">states + event boundaries</text>
+  <path d="M650 280 C730 280 730 160 810 160" class="l"/><path d="M650 315 C730 315 730 280 810 280" class="l"/><path d="M650 350 C730 350 730 400 810 400" class="l"/><path d="M650 385 C730 385 730 520 810 520" class="l"/>
+  <rect x="815" y="110" width="350" height="92" rx="10" class="b"/><text x="990" y="148" class="h">Chapter 3 · Architecture</text><text x="990" y="176" class="s">Which component owns each event?</text>
+  <rect x="815" y="230" width="350" height="92" rx="10" class="b"/><text x="990" y="268" class="h">Chapter 4 · Mechanics</text><text x="990" y="296" class="s">Why do Prefill and Decode exist?</text>
+  <rect x="815" y="350" width="350" height="92" rx="10" class="b"/><text x="990" y="388" class="h">Chapter 6 · Metrics</text><text x="990" y="416" class="s">How are observations aggregated?</text>
+  <rect x="815" y="470" width="350" height="92" rx="10" class="b"/><text x="990" y="508" class="h">Chapter 21 · Scheduling</text><text x="990" y="536" class="s">Why do waits and gaps occur?</text>
+  <rect x="120" y="610" width="1040" height="62" rx="10" fill="#f5f5f5" stroke="#aaa"/><text x="640" y="649" class="take">Key Takeaway：先知道请求在哪个阶段，再解释组件、指标和优化</text>
 </svg>

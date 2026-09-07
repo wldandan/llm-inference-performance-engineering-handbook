@@ -1,0 +1,16 @@
+{"request_id":"req-ok","event":"request_received","ts_ms":0}
+{"request_id":"req-ok","event":"queued","ts_ms":2}
+{"request_id":"req-ok","event":"scheduled","ts_ms":12}
+{"request_id":"req-ok","event":"first_token","ts_ms":42}
+{"request_id":"req-ok","event":"token","ts_ms":61}
+{"request_id":"req-ok","event":"last_token","ts_ms":92}
+{"request_id":"req-ok","event":"finished","ts_ms":97}
+{"request_id":"req-cancel","event":"request_received","ts_ms":120}
+{"request_id":"req-cancel","event":"queued","ts_ms":122}
+{"request_id":"req-cancel","event":"scheduled","ts_ms":140}
+{"request_id":"req-cancel","event":"cancelled","ts_ms":148}
+{"request_id":"req-failed","event":"request_received","ts_ms":200}
+{"request_id":"req-failed","event":"queued","ts_ms":202}
+{"request_id":"req-failed","event":"scheduled","ts_ms":205}
+{"request_id":"req-failed","event":"first_token","ts_ms":230}
+{"request_id":"req-failed","event":"failed","ts_ms":250}

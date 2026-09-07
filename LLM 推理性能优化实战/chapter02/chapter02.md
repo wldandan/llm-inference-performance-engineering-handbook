@@ -1,443 +1,312 @@
-# 第 2 章 LLM Inference Architecture
+# 第 2 章 Inference Lifecycle：请求在系统里如何流动
 
 ## 学习目标
 
 学完本章后，你应该能够：
 
-- 画出一个在线 LLM 推理系统的基本架构。
-- 解释 Client、Gateway、Router、Admission / Queue、Engine Scheduler、Worker、Runtime 与 GPU 的职责边界。
-- 说清楚 Client、Gateway、Router、Admission / Queue、Engine Scheduler、Worker、Runtime、GPU 和 Response 各自接收什么、产出什么。
-- 把本书抽象组件映射到 Ray Serve、KServe、Triton、Dynamo、vLLM 等成熟系统。
-- 说明为什么 LLM 推理服务不能只看模型本身，还要看队列、调度、运行时和硬件资源。
-- 比较 vLLM、SGLang、TensorRT-LLM 与 Llama.cpp 在架构取向上的差异。
-- 用一次最小 Demo 观察“客户端请求是否成功进入推理服务，并由哪个模型后端返回结果”。
+- 区分一次业务任务、一次 LLM 调用和一条推理请求。
+- 用统一事件描述请求从接收、排队、执行到结束的状态变化。
+- 标出 Queue、Prefill、Decode、Streaming Response 和资源回收的时间边界。
+- 解释服务端生成首 token 与客户端收到首个 chunk 为什么不是同一个时刻。
+- 识别 finished、cancelled、failed 三类终态，并说明每类终态都要完成资源清理。
+- 运行生命周期追踪 Demo，把 JSONL 事件还原成阶段耗时。
 
-第 1 章已经带你跟着一个请求走了一遍生命周期，Gateway、Queue、Scheduler 这些词当时只按字面意思使用。本章往回退一步，把这些组件拆解成更精确的架构分层，只建立架构视图，不重复讲一遍生命周期；TTFT、TPOT、TPS、P95/P99 等指标会在第 4 章系统定义；Benchmark、Profiling 和优化技术放在后续章节。
+本章属于 Core Track。第 1 章已经让服务跑起来，并从客户端看到了流式响应；现在把那次调用展开成一条可以记录、检查和讨论的正式生命周期。组件由谁实现留到第 3 章，Transformer 为什么会产生 Prefill 和 Decode 留到第 4 章，TTFT、TPOT 和分位数的正式定义留到第 6 章。
+
+Advanced Track 可以继续追踪框架内部的抢占、Chunked Prefill、远程 KV 传输和 Prefill/Decode 分离事件。本章只给这些复杂路径留下位置，不展开调度算法和分布式实现。
 
 ## 核心问题
 
-本章围绕六个问题展开：
+1. 请求生命周期需要记录哪些关键事件？
+2. Queue、Prefill、Decode 和 Response 的起止点在哪里？
+3. 并发、抢占、取消和失败会怎样改变一条请求的路径？
+4. 客户端观测与服务端观测为什么不能直接混算？
+5. 如何从一组事件重建请求经历过的阶段？
 
-1. LLM 推理系统长什么样？
-2. 一个在线请求进入服务后，会经过哪些系统组件？
-3. Router、Admission / Queue、Engine Scheduler、Worker、Runtime、GPU 分别管什么？
-4. 每个组件的输入和输出分别是什么？
-5. 成熟开源系统和商业化系统如何体现这些分层？
-6. 为什么不同推理框架的架构取向会影响性能优化方式？
+![推理请求生命周期与关键时间点](figures/fig02-01_request_lifecycle_timeline.svg)
 
-![LLM 推理系统全局架构](figures/fig02-01_inference_system_architecture.svg)
+图2-1：推理请求生命周期与关键时间点。
 
-图2-1：LLM 推理系统全局架构。
+## 2.1 先分清三种“请求”
 
-## 2.1 先看系统，不先看模型
+业务侧说“一次请求”，推理引擎听到的可能完全不是一回事。
 
-很多人第一次做 LLM 推理优化，会从模型文件、显存占用或某个框架参数开始看。这些当然重要，但它们不是完整系统。
-
-一个在线推理请求至少要经过几层东西：客户端发起请求，服务入口做协议处理和鉴权，路由层选择模型版本或服务实例，队列和调度层决定请求什么时候进入执行，Worker 调用推理运行时，Runtime 再把模型计算提交给 GPU。请求返回时，还要把生成结果按普通响应或流式响应送回客户端。
-
-可以把它先看成一条系统链路：
+以 Agent 为例，用户只提交了一次“帮我比较三家供应商”的任务。Agent 可能先调用一次 LLM 制订计划，随后并行调用三个工具，再调用一次 LLM 汇总结果。业务系统看到一个 Task，模型服务看到两次或更多 LLM Call；如果中间发生重试，同一个 Call 还可能对应多条 Inference Request。
 
 ```text
-Client
-  -> Gateway
-  -> Router
-  -> Admission / Queue
-  -> Engine Scheduler
-  -> Worker
-  -> Runtime
-  -> GPU
-  -> Response
+Business Task
+  -> LLM Call 1
+       -> Inference Request 1
+  -> Tool Calls
+  -> LLM Call 2
+       -> Inference Request 2
+       -> Retry Request 3
 ```
 
-这条链路不是为了背名词，而是为了定位责任。用户觉得慢，可能是 Gateway 前面的限流或鉴权，可能是 Router 选错了实例，可能是 Admission / Queue 把请求排住了，可能是 Engine Scheduler 没有形成有效 batch，可能是 Worker 被 KV Cache 容量卡住，也可能是 Runtime 的 kernel 执行效率低。只看模型 forward 时间，容易漏掉服务系统里的等待和资源竞争。
+本章研究的对象是最内层的 Inference Request。它有独立的请求 ID、输入 token、生成参数、队列状态、KV Cache、输出 token 和终态。到了第 24 章，我们再把多条请求拼回 Agent 的端到端任务。
 
-本课程后面的所有性能分析，都会回到这个架构视图上：先判断性能现象发生在哪个组件，再决定该采集什么指标、用什么工具、改哪个参数或哪段实现。
+![业务任务、LLM 调用与推理请求](figures/fig02-02_task_call_request.svg)
 
-## 2.2 Client 与 Gateway：请求真正进入系统的地方
+图2-2：业务任务、LLM 调用与推理请求是三个不同层级。
 
-Client 可以是聊天界面、业务服务、Agent 工作流、评测脚本，也可以是另一个后端系统。它关心的是 API 是否稳定、首包是否及时、输出是否连续、失败时能不能重试。
+## 2.2 用归一化状态描述生命周期
 
-Gateway 是推理系统的入口层。它通常处理这些事情：
-
-- 协议适配，例如 OpenAI-compatible HTTP API、gRPC 或内部 RPC。
-- 鉴权、租户识别、限流和配额。
-- 请求参数校验，例如模型名、max tokens、temperature、stream。
-- 路由到合适的模型服务实例。
-- 记录请求日志和基础观测数据。
-
-Gateway 不应该承担模型计算，但它会影响请求进入计算层之前的等待时间。生产系统里，一个模型服务“GPU 还没满但用户仍然慢”，常常不是 GPU 算不动，而是入口、路由或队列策略没有设计好。
-
-![Client 与 Gateway 边界](figures/fig02-02_client_gateway_boundary.svg)
-
-图2-2：Client 与 Gateway 边界。
-
-## 2.3 Router、Queue 与 Scheduler：推理系统的交通控制器
-
-从全局系统看，“调度”不是一个单点组件，而是分布在 Router、Admission / Queue 和 Engine Scheduler 几层。
-
-Router 决定请求去哪里。它可能根据模型名、版本、租户、负载、灰度策略、地域或 KV Cache 命中可能性，把请求发到不同的实例、worker group 或后端引擎。
-
-Admission / Queue 决定请求能不能进入执行队列。它关心配额、优先级、SLO、队列长度、超时、并发上限和拒绝策略。
-
-Engine Scheduler 决定进入某个推理实例后的下一轮执行。它是 LLM Serving 和普通 Web 服务差别最大的地方之一。
-
-普通 Web 服务里，请求通常可以被线程池或进程池相对独立地处理。LLM 推理不同：多个请求会共享 GPU、模型权重、KV Cache 空间和 batch 执行机会。调度器必须在吞吐、单请求延迟、显存容量和公平性之间做取舍。
-
-Engine Scheduler 常见职责包括：
-
-- 维护等待队列和运行中请求集合。
-- 决定本轮 batch 包含哪些请求。
-- 控制 prompt token、output token、并发数和 KV Cache block 的资源预算。
-- 在长请求和短请求之间做公平性处理。
-- 在内存不足或优先级变化时触发抢占、延迟或拒绝。
-
-本章不展开 Dynamic Batching、Continuous Batching 和 Chunked Prefill 的算法细节。这些属于 Serving Optimization，会在第 17 到第 21 章系统讲。这里先记住一句话：Engine Scheduler 是请求能否高效共享 GPU 的核心组件；Gateway、Router 和 Admission / Queue 则决定请求能否以正确优先级进入这个执行层。
-
-![Scheduler 的核心职责](figures/fig02-03_scheduler_responsibility.svg)
-
-图2-3：Scheduler 的核心职责。
-
-## 2.4 Worker、Runtime 与 GPU：真正执行模型的地方
-
-Worker 是服务进程中负责模型执行的单元。一个 Worker 可能绑定一张 GPU，也可能和其他 Worker 共同使用多张 GPU。它通常持有模型权重、运行时上下文、KV Cache 管理器，以及和调度器交互的执行循环。
-
-Runtime 是 Worker 里面真正调用底层执行能力的部分。它负责把模型计算变成 GPU 可以运行的 kernel、graph、engine 或算子调用。不同框架在 Runtime 层的设计差异很大：
-
-- 有的优先保持 Python 和 Hugging Face 生态兼容。
-- 有的把模型编译成高度优化的 engine。
-- 有的针对结构化生成和多轮对话做前缀复用。
-- 有的优先支持 CPU、Metal、量化和边缘设备。
-
-GPU 是计算资源，但不是孤立资源。推理系统里同时占用 GPU 的内容包括模型权重、KV Cache、临时工作区、通信缓冲区和运行时预留内存。GPU 忙不忙，只是一个结果；为什么忙、忙在哪一段、是不是有效地忙，第 3 章会先建立 GPU 内部的硬件模型，第 7 章 Profiling Toolchain 才能严肃回答"如何用证据判断"。
-
-![Worker Runtime GPU 分层](figures/fig02-04_worker_runtime_gpu.svg)
-
-图2-4：Worker、Runtime 与 GPU 的分层关系。
-
-### 2.4.1 组件输入与输出
-
-把组件职责说清楚以后，还要继续问一个更工程化的问题：这个组件接收什么，产出什么。输入和输出不是为了画更复杂的图，而是为了在排障时知道应该看哪类日志、状态和指标。
-
-下表给出第 2 章需要掌握的架构级输入输出。Prefill、Decode、KV Cache 的完整生命周期第 1 章已经跟着请求走过一遍，这里从组件职责的角度再对应一次。
-
-| 组件 | 主要输入 | 主要输出 | 边界说明 |
-|---|---|---|---|
-| Client | 用户问题、业务上下文、请求参数、会话状态 | HTTP/gRPC/RPC 请求，或接收到的普通/流式响应 | Client 负责发起和消费结果，不负责服务端调度和模型执行 |
-| Gateway | 外部请求、模型名、租户身份、鉴权信息、限流和入口配置 | 校验后的内部请求、拒绝/限流响应、入口日志 | Gateway 决定请求能否进入系统，不负责 token batch |
-| Router | 校验后的内部请求、模型版本、实例状态、负载、路由策略 | 目标 replica、worker group 或后端 engine | Router 决定请求去哪里，不负责模型执行 |
-| Admission / Queue | 路由后的请求、租户配额、优先级、SLO、队列长度、并发上限 | 接收、等待、拒绝或降级决策 | Admission 管全局流量预算和排队策略 |
-| Engine Scheduler | 待执行请求队列、运行中请求状态、Worker 可用状态、GPU/KV Cache 资源状态、调度策略 | batch plan、dispatch plan、等待/抢占/拒绝决策 | Engine Scheduler 输出的是执行计划，不是模型结果 |
-| Worker | Engine Scheduler 下发的执行计划、batch metadata、模型权重、请求执行状态 | Runtime 调用、token 结果、请求状态更新、资源占用更新 | Worker 是执行单元，负责把调度计划转成实际模型执行 |
-| Runtime | Worker 传入的模型输入、batch metadata、KV Cache 句柄、采样参数、执行配置 | GPU kernel/graph/engine 调用、logits、采样 token、运行时状态 | Runtime 是框架执行层，例如 vLLM、SGLang、TensorRT-LLM 的底层执行路径 |
-| GPU | Runtime 提交的 kernel、模型权重、activation、KV Cache、临时工作区 | 计算结果、显存状态变化、kernel timeline、硬件计数器 | GPU 提供计算和显存资源，但不理解业务请求 |
-| Response | Worker/Runtime 产出的 token、结束原因、usage 信息、错误状态 | 返回给 Client 的普通响应或 streaming chunks | Response 是服务结果的封装和传输，不等于模型内部计算 |
-
-以 Engine Scheduler 和 Worker 为例，两者最容易混在一起。Engine Scheduler 的输入是“队列、运行中请求、资源状态和策略”，输出是“下一轮让谁执行、组成什么 batch、分配给哪个 Worker”。Worker 的输入是这个执行计划和模型执行所需状态，输出才是 token、状态更新和 Runtime 调用结果。
-
-所以，当一个请求变慢时，问题可以按输入输出拆开看：
-
-- Gateway 已经输出内部请求了吗？如果没有，先看鉴权、限流、路由和入口日志。
-- Router 已经选出目标实例了吗？如果没有，先看模型版本、实例健康状态、负载和路由规则。
-- Admission / Queue 已经允许请求进入执行队列了吗？如果没有，先看租户配额、优先级、SLO 和全局并发预算。
-- Engine Scheduler 已经输出 dispatch plan 了吗？如果没有，先看 token batch 预算、KV Cache 预算和可用 Worker。
-- Worker 已经开始执行了吗？如果没有，先看 Worker 是否空闲、模型是否加载、KV Cache 是否够用。
-- Runtime / GPU 已经返回计算结果了吗？如果没有，才继续看 kernel、显存、硬件利用率和框架执行路径。
-
-## 2.5 模型服务内部的三类状态
-
-架构图不只是组件框。推理系统之所以难优化，是因为它同时管理三类状态。
-
-第一类是请求状态。包括用户输入、生成参数、当前生成到哪里、是否 stream、是否取消、是否超时。
-
-第二类是模型执行状态。包括模型权重、tokenizer、采样器、batch metadata、CUDA stream、通信上下文和运行时缓存。
-
-第三类是资源状态。包括 GPU 显存、KV Cache block、队列长度、batch slot、并发上限和实例健康状态。
-
-一个调度决策如果只看请求，不看资源，会把 GPU 或显存打爆；只看资源，不看请求，会牺牲交互体验；只看平均吞吐，不看尾部延迟，会让生产系统在高峰期不可控。
-
-![推理服务的三类状态](figures/fig02-05_serving_state_types.svg)
-
-图2-5：推理服务的三类状态。
-
-## 2.6 单实例、多实例与平台化服务
-
-最小的 LLM 推理服务可以只有一个实例：一个 Gateway 接一个 Worker，Worker 加载一个模型，后面连一张 GPU。这种结构最容易调试，也适合课程 Demo。
-
-生产系统通常会更复杂：
-
-- 单模型多实例：同一个模型部署多个副本，通过负载均衡分摊流量。
-- 多模型服务：多个模型共享一组 GPU，根据请求动态路由或加载。
-- 平台化服务：统一管理模型版本、租户、配额、监控、发布、回滚和成本。
-
-这些形态没有绝对优劣。单模型服务隔离性好，排障直接；多模型服务提高资源利用率，但路由、缓存和冷启动更复杂；平台化服务适合组织内多个团队共享能力，但控制面和观测体系要更扎实。
-
-第 2 章只建立这几种形态的架构差别。容量模型、多 GPU 和 scale-out 会在第 21 到第 25 章展开。
-
-![部署形态演进](figures/fig02-06_deployment_patterns.svg)
-
-图2-6：部署形态演进。
-
-## 2.7 四类推理框架的架构取向
-
-不同框架不是同一个系统的简单替代品。它们对“什么最重要”的判断不同。
-
-vLLM 的重点是高吞吐在线服务和成熟生态。它围绕请求调度、PagedAttention、KV Cache block 管理、OpenAI-compatible API 和多 GPU 执行构建，适合作为通用 GPU Serving 的起点。
-
-SGLang 更强调结构化生成、多轮对话和 Agent 工作流。它在前缀复用、结构化约束、服务端编排等场景里有自己的设计重点。
-
-TensorRT-LLM 的取向是 NVIDIA GPU 上的高性能推理。它更依赖编译、engine、算子融合和硬件相关优化，适合模型与硬件相对稳定、团队能投入构建和调试成本的场景。
-
-Llama.cpp 走的是另一条路：让模型在 CPU、Metal、消费级 GPU 和边缘设备上可用。它通常不是大型 GPU 在线服务的第一选择，但对本地开发、边缘部署和低成本试验很有价值。
-
-这里不做“谁最好”的结论。框架选择本质上是在生态、性能、硬件、可维护性和业务场景之间取舍。
-
-![推理框架架构取向对比](figures/fig02-07_framework_architecture_comparison.svg)
-
-图2-7：推理框架架构取向对比。
-
-## 2.8 成熟系统中的对应关系
-
-本章的组件划分不是凭空抽象出来的。真实系统的命名不同，覆盖层级也不同，但它们都会把入口、路由、排队/调度、执行实例和底层运行时分开。
-
-| 本书分层 | 负责什么 | Ray Serve | KServe | Triton | Dynamo / LLM Serving | vLLM / SGLang / TensorRT-LLM |
-|---|---|---|---|---|---|---|
-| Gateway / API Frontend | 协议接入、鉴权、限流、入口日志 | HTTP Proxy | Ingress / Gateway | HTTP/gRPC Frontend | Frontend | OpenAI-compatible API Server |
-| Router | 模型版本、实例、副本、worker group 选择 | Request Router / DeploymentHandle | KServe / Knative routing | Model routing | Router，按负载和 KV overlap 选 worker | API server 或外部 router |
-| Admission / Queue | 配额、优先级、排队、拒绝、扩缩容信号 | Proxy / replica queue，autoscaling | Queue / autoscaling path | Per-model scheduler queue | Request plane queue / planner | Engine waiting queue |
-| Inference Server | 承载模型服务进程 | Replica 内的用户代码或模型服务 | Predictor container / pod | Triton server | 后端 engine 服务 | vLLM Server / SGLang Server / TensorRT-LLM Serve |
-| Engine Scheduler / Batch Manager | token batch、Prefill/Decode、KV Cache、显存预算 | 通常由底层 engine 负责 | Predictor 内部 runtime 负责 | Per-model scheduler / dynamic batcher | 后端 engine scheduler | vLLM Scheduler、SGLang Scheduler、TensorRT-LLM Executor / Batch Manager |
-| Worker / Replica / Model Instance | 持有模型并执行请求 | Replica | Predictor | Model instance | Prefill Worker / Decode Worker | Worker / model runner |
-| Runtime / Kernel / GPU | engine、kernel、硬件执行 | PyTorch / vLLM / custom runtime | Triton / vLLM / custom runtime | Backend runtime | vLLM / SGLang / TensorRT-LLM backend | CUDA、TensorRT engine、attention kernel |
-
-这张表有两个用法。
-
-第一，不要把所有系统都叫“全套 LLM 推理系统”。Ray Serve 更偏通用在线 serving 框架，KServe 更偏 Kubernetes 模型服务平台，Triton 更偏推理服务器，vLLM / SGLang / TensorRT-LLM 更偏 LLM engine 与 serving engine。Dynamo 这类系统更接近大规模 LLM serving runtime，它把 Frontend、Router、Prefill Worker、Decode Worker 和后端 engine 编排起来。
-
-第二，不要把所有预算都放进 Scheduler。Gateway 管入口预算，Router 管实例选择，Admission / Queue 管全局流量预算，Engine Scheduler 才管进入推理实例后的 token batch、KV Cache、Prefill/Decode 执行预算。Worker 负责执行已经分配好的计划。
-
-典型资料可以从这些系统入手：
-
-- Ray Serve Architecture：HTTP Proxy 接收请求并转发到 Replica，Replica 执行代码。
-- KServe Transformer / Predictor：Ingress、Transformer、Predictor 形成平台级 serving 分层。
-- Triton Inference Server：请求进入后路由到 per-model scheduler，支持 dynamic batching。
-- NVIDIA Dynamo Overall Architecture：Frontend、Router、Prefill Workers、Decode Workers 和后端 engine 共同组成分布式推理运行时。
-- vLLM / SGLang / TensorRT-LLM：说明 LLM engine 内部的 Scheduler、Batch Manager、Worker、KV Cache 和 Runtime 边界。
-
-## 2.9 架构视图如何服务性能分析
-
-本课程的统一方法是：
+不同框架给状态起的名字并不一致。课程先使用一套归一化事件，避免把概念绑死在某个版本的内部类上：
 
 ```text
-理解系统
-  -> 理解瓶颈
-  -> 定位瓶颈
-  -> 优化方案
-  -> 验证收益
+request_received
+  -> queued
+  -> scheduled
+  -> first_token
+  -> token ...
+  -> last_token
+  -> finished
 ```
 
-第 2 章只做第一步：理解系统。
+这条主路径表达的是：服务收到请求；请求完成入口处理并进入等待队列；调度器给它分配执行机会；模型产出首 token；后续 token 持续产生；最后一个 token 生成；响应发送完毕，请求结束。
 
-理解系统不是画一张漂亮图，而是能把性能问题放回具体组件：
+`cancelled` 和 `failed` 是旁路终态。它们可以发生在排队、Prefill 或 Decode 期间。实际系统还可能出现 waiting for grammar、waiting for remote KV、preempted 等更细状态。例如 vLLM 当前的 RequestStatus 明确区分 WAITING、RUNNING、PREEMPTED 以及若干特殊等待状态；这些都可以映射回本章的归一化模型，而不必照搬名称。[vLLM RequestStatus](https://docs.vllm.ai/en/stable/api/vllm/v1/request/)
 
-| 现象 | 优先查看的架构位置 | 本章只给定位方向 |
+![归一化请求状态机](figures/fig02-03_normalized_state_machine.svg)
+
+图2-3：归一化状态机保留主路径，也允许取消和失败提前结束请求。
+
+## 2.3 给生命周期建立时间坐标
+
+状态说清楚后，再给每个关键事件记一个时间戳：
+
+| 时间点 | 事件 | 说明 |
 |---|---|---|
-| 请求根本进不来 | Client / Gateway | 检查协议、路由、鉴权、限流 |
-| 并发上来后等待变长 | Gateway / Router / Admission / Queue | 检查入口限流、路由、队列和全局并发预算 |
-| GPU 有空洞 | Engine Scheduler / Worker | 检查 batch 形成和 worker 执行节奏 |
-| 显存很快吃满 | Worker / Runtime / GPU | 检查模型权重、KV Cache、并发预算 |
-| 框架迁移成本高 | Runtime / API 层 | 检查接口抽象和框架绑定 |
+| `t0` | `request_received` | 服务端接收到请求 |
+| `t1` | `queued` | 请求进入引擎等待队列 |
+| `t2` | `scheduled` | 请求首次获得执行机会 |
+| `t3` | `first_token` | 服务端生成第一个输出 token |
+| `t4` | `last_token` | 服务端生成最后一个输出 token |
+| `t5` | `finished` | 响应发送和收尾工作结束 |
 
-这些还不是正式诊断。第 4 章会定义指标，第 6 章会讲 Benchmark，第 7 章会讲 Profiling 工具。现在要做的是先知道“去哪里看”。
-
-![架构视图到性能分析](figures/fig02-08_architecture_to_analysis.svg)
-
-图2-8：架构视图到性能分析。
-
-## 2.10 Demo：确认一个最小推理服务架构
-
-本章 Demo 不做性能 benchmark，只确认一个最小架构能跑通：
+于是可以得到一组阶段时间：
 
 ```text
-demo.py
-  -> OpenAI-compatible API
-  -> vLLM API Server
-  -> Worker / Runtime
-  -> GPU
-  -> Streaming Response
+Admission      = t1 - t0
+Queue          = t2 - t1
+Prefill        = t3 - t2
+Decode         = t4 - t3
+Response Tail  = t5 - t4
+End-to-End     = t5 - t0
 ```
 
-配套代码位于：
+这组式子是生命周期分段，不是全书最终的指标规范。比如某些引擎把 tokenization 算进 arrival 到 scheduled，某些系统把首 token 的采样放在 Prefill 尾部，还有些监控只能看到客户端 chunk。第 6 章会要求每个指标同时写清名称、时间点、公式和采集位置。
+
+vLLM 的服务端指标也采用相近边界：Queue 从首次排队到首次调度，Prefill 从首次调度到首个新 token，Decode 从首 token 到末 token；抢占造成的等待会被包含在相应区间里。[vLLM Metrics](https://docs.vllm.ai/en/latest/design/metrics/)
+
+![Queue 与首次调度的边界](figures/fig02-04_queue_schedule_boundary.svg)
+
+图2-4：只有明确 queued 和 scheduled 两个时间点，Queue 才有可复核的边界。
+
+## 2.4 Request Received 与 Queue：计算开始前发生了什么
+
+`request_received` 表示服务边界已经接到请求，但请求还不一定进入引擎队列。协议解析、鉴权、参数校验、tokenization、路由和准入控制都可能发生在这一段。它们是否计入 Admission，取决于观测点放在哪里。
+
+`queued` 表示请求已经进入某个等待执行的队列。排队不是“系统什么都没做”，而是在等待一组条件满足：有可用执行预算、有足够 KV Cache 空间、调度策略允许、请求没有超时或被取消。
+
+`scheduled` 是第一次真正获得引擎执行机会。这里要强调“第一次”：请求后面仍可能经历很多轮调度，甚至被抢占后重新排队。生命周期里的 Queue 通常关注首次排队到首次调度；要研究重复等待，需要额外事件，不能靠一个 queue 时间猜出来。
+
+第 3 章会区分 Gateway、Router、Admission Queue 和 Engine Scheduler。当前只需记住，`request_received -> queued -> scheduled` 发生在模型产出 token 之前，其中任何一段变长，用户都会觉得首包变慢。
+
+## 2.5 Scheduled、Prefill 与 First Token
+
+请求第一次被调度后，模型要先处理输入上下文。对普通文本生成请求来说，这段执行称为 Prefill。它读取 prompt tokens，经过 Transformer 各层，并为历史 token 建立 KV Cache。
+
+Prefill 的结束边界容易说错。完成最后一个 prompt token 的计算，还不等于客户端已经看见结果。服务端通常还要得到 logits、执行采样、形成输出对象，再把首个 chunk 写入网络。本章把 `first_token` 定义为服务端生成首 token；客户端首次收到 chunk 是另一个观测点。
 
 ```text
-chapter01/demo/
+scheduled
+  -> prompt compute
+  -> KV Cache created
+  -> logits
+  -> sampling
+  -> first_token generated
 ```
 
-### 2.10.1 启动 vLLM 服务
+如果启用了 Prefix Cache 或 Chunked Prefill，这条路径会出现缓存命中或多轮 Prefill，但请求仍要经过“输入尚未处理完”到“首 token 已生成”的状态变化。具体计算机制在第 4、12 章讲，优化方法在第 14 章讲。
 
-如果模型可以通过 Hugging Face id 解析：
+![Prefill 与首 token 的边界](figures/fig02-05_prefill_first_token.svg)
+
+图2-5：Prefill 连接首次调度与服务端首 token，客户端首 chunk 还要经过返回链路。
+
+## 2.6 Decode 是一串引擎步，不是一段黑盒时间
+
+首 token 之后，请求进入 Decode。每个标准 Decode step 读取当前 token 和已有 KV Cache，计算下一 token，并把新 token 的 K/V 追加到缓存。直到 EOS、stop condition、长度上限、取消或错误出现。
+
+```text
+first_token
+  -> decode step 1 -> token 2 -> append KV
+  -> decode step 2 -> token 3 -> append KV
+  -> ...
+  -> last_token
+```
+
+一条请求会跨越许多 engine iteration。并发时，一个 iteration 又可能同时推进多条请求。因此有两条正交时间线：请求时间线回答“这条请求经历了什么”，引擎时间线回答“这一轮 GPU 推进了哪些请求”。后续分析 GPU 空洞或 Batch Efficiency 时，两条线都要看。
+
+抢占会让 Decode 不再连续。请求可能从 RUNNING 进入 PREEMPTED，释放或转移资源，之后重新等待调度。此时 `first_token -> last_token` 仍然是用户经历的 Decode 区间，但其中包含了暂停。要解释暂停原因，必须再看 Scheduler 和 KV Cache 事件。
+
+![Decode step 与 KV Cache 增长](figures/fig02-06_decode_steps_kv_growth.svg)
+
+图2-6：一条请求跨越多个 Decode step，KV Cache 随生成长度增长。
+
+## 2.7 Streaming：token、输出对象和网络 chunk 不是一一对应
+
+模型生成 token 后，服务端还要解码文本、组装协议对象并发送数据。最简单的实现可能每个 token 发送一个 chunk，但这不是可靠假设。服务端可能缓冲多个 token，网络栈可能合并写入，投机解码也可能一次接受多个 token。
+
+所以需要分开记录：
+
+- `first_token_generated`：引擎第一次产出 token。
+- `first_chunk_sent`：服务端第一次写出流式数据。
+- `first_chunk_received`：客户端第一次读到流式数据。
+- `response_finished`：客户端或服务端认为响应已经结束。
+
+第 1 章 Demo 采集的是客户端时间，能回答“用户等了多久”；本章 Demo 处理的是归一化服务端事件，能回答“请求在哪个阶段”。两组数据使用不同的时钟和边界，未经 Trace ID 对齐不能直接相减。vLLM 的 benchmark 文档也明确说明其 TTFT 和 ITL 在客户端测量，比较工具时应看测量点与公式，而不只看指标名。[vLLM Benchmark CLI](https://docs.vllm.ai/en/stable/benchmarking/cli/)
+
+![服务端事件与客户端观测](figures/fig02-07_server_client_observation.svg)
+
+图2-7：服务端首 token、首个网络 chunk 和客户端首包属于三个观测点。
+
+## 2.8 Finished、Cancelled、Failed 都必须收口
+
+正常结束只是终态之一：
+
+- `finished`：生成满足 EOS、stop condition 或长度上限，响应正常完成。
+- `cancelled`：客户端断开、业务主动取消或超时策略终止请求。
+- `failed`：参数、模型执行、Worker、网络或其他环节发生错误。
+
+三条路径都必须进入资源清理。服务需要停止后续计算，释放或复用 KV Cache block，清理调度状态，关闭流式响应，并写入 finish reason、错误和 usage。否则一次已取消的请求仍可能继续消耗 GPU；状态泄漏积累后，服务看起来像是“越跑并发越低”。
+
+不要把清理等同于立即释放所有缓存。Prefix Cache、会话缓存或远程 KV 可能按策略保留。生命周期要求的是请求所有权结束后，资源进入明确的新所有者或可回收状态，而不是留成无法解释的占用。
+
+![三类终态与资源清理](figures/fig02-08_terminal_cleanup.svg)
+
+图2-8：成功、取消和失败走不同终态，但都汇入资源与状态清理。
+
+## 2.9 Demo：从事件日志重建生命周期
+
+本章 Demo 位于 `chapter02/demo/`，只使用 Python 标准库，可在没有 GPU 的机器上运行。样例事件是合成数据，目的是验证状态与时间边界，不代表任何模型、框架或硬件的真实性能。
+
+从课程目录运行：
 
 ```bash
-python3 chapter01/demo/start_vllm.py \
-  --model Qwen/Qwen2.5-0.5B-Instruct \
-  --served-model-name Qwen/Qwen2.5-0.5B-Instruct \
-  --host 0.0.0.0 \
-  --port 8000
+python3 chapter02/demo/lifecycle_trace.py \
+  --input chapter02/demo/sample-events.jsonl
 ```
 
-如果模型已经在本地目录，例如 `/home/admin/models/Qwen2.5-0.5B-Instruct`：
+样例包含一条正常完成请求、一条取消请求和一条失败请求。分析器会先按 `request_id` 分组，再验证时间戳和状态跳转，最后输出能够闭合的阶段时间。
 
-```bash
-python3 chapter01/demo/start_vllm.py \
-  --model /home/admin/models/Qwen2.5-0.5B-Instruct \
-  --served-model-name Qwen/Qwen2.5-0.5B-Instruct \
-  --host 0.0.0.0 \
-  --port 8000
+```json
+{
+  "requests": 3,
+  "finished": 1,
+  "cancelled": 1,
+  "failed": 1
+}
 ```
 
-### 2.10.2 发送一次请求
+正常请求会得到 admission、queue、prefill、decode、response tail 和 end-to-end。取消请求如果没有产生首 token，就不会伪造 prefill 或 decode 时间。这个细节很重要：缺少事件表示“当前证据算不出来”，不是零毫秒。
 
-从课程根目录运行：
+实验输入、事件规范和测试命令见 [Demo README](demo/README.md)。
 
-```bash
-python3 chapter01/demo/demo.py \
-  --base-url http://127.0.0.1:8000/v1 \
-  --model Qwen/Qwen2.5-0.5B-Instruct \
-  --prompt "请用一句话说明这个服务由哪些组件组成。" \
-  --max-tokens 128 \
-  --requests 1 \
-  --concurrency 1
-```
+![生命周期事件如何生成阶段报告](figures/fig02-09_demo_event_report.svg)
 
-本章只观察：
+图2-9：Demo 从 JSONL 事件恢复状态路径和可计算的阶段时间。
 
-- 客户端是否能访问 OpenAI-compatible API。
-- 请求是否由指定模型名处理。
-- 服务是否返回 stream chunks 和 usage。
-- 如果有 `nvidia-smi`，是否能看到 GPU 快照。
+## 2.10 课堂案例：两条请求为什么会互相影响
 
-脚本会输出 TTFT、ITL、tokens/s 等字段，但这里不解释指标优劣，也不做结论。第 4 章会系统讲指标，第 6 章再讲可信 Benchmark。
+客服系统同时收到两条请求：A 带有 8K token 的历史会话，B 只有一句短问题。A 先进入队列，B 晚 5 毫秒到达。日志显示：
 
-![本章最小 Demo 架构](figures/fig02-09_demo_architecture.svg)
+| 请求 | queued | scheduled | first_token | last_token | finished |
+|---|---:|---:|---:|---:|---:|
+| A | 2 | 10 | 90 | 150 | 154 |
+| B | 7 | 95 | 108 | 132 | 136 |
 
-图2-9：本章最小 Demo 架构。
-
-## 2.11 课堂案例：企业问答服务应该画成什么架构
-
-假设一家企业要做内部知识库问答。用户在网页里提问，系统会带上员工身份、部门权限和问题文本，请求部署在公司 GPU 集群上的 LLM 服务。模型服务使用 vLLM，前面有 API Gateway，后面有多张 GPU。
-
-第一版架构如果只画成：
-
-```text
-Web App -> LLM
-```
-
-几乎没法排查问题。试运行后，业务方很快会遇到几类反馈：
-
-- 有些用户能访问不该看的文档。
-- 晚上批量任务一跑，白天聊天请求也变慢。
-- GPU 利用率看起来不低，但部分请求仍然等很久。
-- 运维同学很难判断失败请求卡在业务系统、Gateway 还是模型服务。
-
-更合理的架构图至少要拆成：
-
-```text
-Web App
-  -> Enterprise Gateway
-  -> Auth / Policy Check
-  -> LLM Gateway
-  -> Router
-  -> Admission / Queue
-  -> Engine Scheduler
-  -> Worker Pool
-  -> Runtime
-  -> GPU
-```
-
-这样画以后，问题有了落点。权限问题在 Enterprise Gateway 或 Auth / Policy Check；白天请求被晚上任务拖慢，可能是 Gateway 路由、Admission / Queue 或 Engine Scheduler 共享资源策略；GPU 忙但请求等待，可能是队列、batch 形成或 Worker 资源预算；失败请求排查，则要沿着链路逐层看日志。
-
-这个案例的重点不是设计完整企业平台，而是训练架构意识：先把组件边界画出来，性能和可靠性问题才有位置可放。
+B 的输入更短，但 Queue 明显更长。只看 B 自己的 prompt，解释不了这段等待；把两条请求放到同一条引擎时间线上，才会看到 A 占用了前面的执行预算。
 
 课堂讨论：
 
-1. 如果要支持多个模型版本，架构图里应该增加哪个组件？
-2. 如果要区分交互式请求和离线批处理请求，Router、Admission / Queue 和 Engine Scheduler 应该分别怎么标注？
+1. 哪些数字属于请求事实，哪些“为什么慢”的判断仍然只是猜测？
+2. 如果 A 使用 Chunked Prefill，生命周期事件还需要增加什么信息？
 
-### 补充案例 A：代码补全服务为什么更在意 Gateway 和路由
+本章只负责还原路径和时间边界。调度是否合理，要到第 21 章结合队列、Batch 和 SLO 分析。
 
-代码补全服务和企业问答服务都调用 LLM，但架构优先级不同。代码补全通常发生在 IDE 里，用户输入停顿很短，补全建议要很快返回。这里 Client 不再是普通网页，而是 IDE 插件；Gateway 需要识别项目、语言、文件上下文和用户权限；路由层可能要把短补全请求和长代码解释请求分开。
+### 补充案例 A：长文档总结在首 token 前发生了什么
 
-可以让学员画两条链路：
+一条长文档总结请求很久没有返回首包。请把 `request_received -> queued -> scheduled -> first_token` 拆开，并列出每段至少一个可能的观测点。不要直接写“Prefill 太慢”：如果 scheduled 事件都没有出现，问题还没有进入模型计算。
 
-```text
-IDE Plugin -> Gateway -> Router -> Low-latency Queue -> Small Completion Model
-IDE Plugin -> Gateway -> Router -> Standard Queue -> Larger Chat Model
-```
+讨论问题：只有客户端 TTFT，没有服务端事件时，能确定哪一段慢吗？
 
-讨论重点：同样是 LLM 服务，为什么代码补全更怕入口排队和路由错误？这个问题只需要从架构职责回答，不需要进入指标和优化参数。
+### 补充案例 B：Agent 超时为什么不能只取消 HTTP
 
-### 补充案例 B：多租户 API 平台为什么不能只有一个队列
+Agent 给工具调用设置了超时，业务层停止等待，但对应 LLM 请求仍在 GPU 上继续 Decode。几秒后结果被丢弃，KV Cache 才释放。
 
-另一个场景是对外提供 LLM API。免费用户、付费用户、企业用户共用一组模型服务。如果所有请求进同一个队列，免费用户的大批量测试可能拖慢企业用户的生产请求。
+讨论问题：这条链路至少需要在哪几层传播 cancellation？怎样用同一个 Trace ID 证明取消已经抵达模型服务？
 
-架构图里应该显式画出租户识别、配额、优先级和队列隔离：
+## 2.11 常见误区
 
-```text
-API Gateway
-  -> Tenant / Quota
-  -> Priority Queues
-  -> Engine Scheduler
-  -> Worker Pool
-```
+误区一：一个 token 一定对应一个流式 chunk。
 
-课堂讨论：优先级队列应该放在 Gateway、Admission / Queue，还是 Engine Scheduler 里？答案不必唯一，但必须说清楚组件职责。
+协议缓冲、网络写入和投机解码都可能改变 token 与 chunk 的对应关系。做生命周期分析时应记录事件语义，不要拿 chunk 数替代 token 数。
 
-## 2.12 常见误区
+误区二：把客户端首包等待全部算成 Prefill。
 
-误区一：把模型推理等同于模型 forward。
+客户端等待还包含网络、入口处理、排队和返回链路。没有服务端 scheduled 与 first token 事件，只能观察总等待，不能完成阶段归因。
 
-forward 只是 Worker/Runtime/GPU 这一段。在线服务还包括 Gateway、Router、Admission / Queue、Engine Scheduler、流式返回、资源预算和观测系统。性能问题常常出现在模型 forward 之外。
+误区三：认为请求进入 RUNNING 后会连续执行到结束。
 
-误区二：认为 GPU 利用率高就代表架构健康。
+在线服务按 engine iteration 推进多条请求。抢占、优先级、KV Cache 压力和 Chunked Prefill 都可能让一条请求暂停后再继续。
 
-GPU 利用率高只能说明 GPU 忙。它不能说明请求是否排队过久、是否牺牲了尾部延迟，也不能说明 Worker 是否在有效处理目标 workload。
+误区四：只给成功请求记结束事件。
 
-误区三：一开始就比较框架跑分。
+取消和失败更需要终态与清理记录。没有终态，监控无法区分“仍在运行”和“状态泄漏”。
 
-框架跑分要放在 workload 和架构约束里看。Agent 工作流、本地推理、高流量单模型 API、多租户平台，适合的框架取向不一样。
+误区五：把课程状态名当成框架内部 API。
 
-误区四：把第 2 章就写成优化技术清单。
+本章事件是跨框架的归一化模型。接入 vLLM、SGLang 或其他引擎时，要显式维护映射，不能假设名称和边界完全相同。
 
-本章只回答“系统长什么样”。Prefill、Decode、KV Cache、Batching、PagedAttention、Speculative Decoding 都会在后续章节展开。提前把细节塞进来，反而会让架构主线变乱。
+![Chapter 2 与后续章节边界](figures/fig02-10_chapter_boundary.svg)
 
-![第 2 章与后续章节的边界](figures/fig02-10_chapter_boundary.svg)
-
-图2-10：第 2 章与后续章节的边界。
+图2-10：本章定义生命周期，架构、指标、分析和优化分别由后续章节展开。
 
 ## 本章总结
 
-本章建立了 LLM 推理系统的第一张地图。
+一条推理请求可以用六个关键时间点描述：接收、入队、首次调度、首 token、末 token 和结束。它们把 Admission、Queue、Prefill、Decode、Response Tail 和 End-to-End 分开，也让取消和失败有明确位置。
 
-一个在线推理系统至少包含 Client、Gateway、Router、Admission / Queue、Engine Scheduler、Worker、Runtime 和 GPU。Client 提出请求，Gateway 管入口，Router 管目标实例选择，Admission / Queue 管全局流量预算，Engine Scheduler 管进入推理实例后的 batch 和执行计划，Worker 持有模型和执行状态，Runtime 把计算提交给硬件，GPU 承担模型权重、KV Cache 和 kernel 执行压力。
+请求时间线与引擎时间线不是同一张图。前者追踪单条请求，后者解释多个请求如何共享执行轮次。服务端事件和客户端观测也不能混用：首 token 已生成，不代表首个 chunk 已经到达用户。
 
-架构视图的价值在于定位责任。用户觉得慢，不一定是 GPU 算得慢；吞吐上不去，也不一定是模型不够小。你要先判断问题落在哪一层，再进入指标、Benchmark、Profiling 和优化。
+下一章转向 LLM Inference Architecture，回答 Gateway、Router、Admission / Queue、Engine Scheduler、Worker 和 Runtime 分别拥有哪一段生命周期，以及日志和 Trace 应该从哪里采集。
 
-下一章会转向硬件本身：GPU 内部的 SM、Warp 调度、显存层级和 Tensor Core，是本章 Worker/Runtime/GPU 这一层，也是后续所有性能分析的硬件前提。
+### Core Checklist
 
-### 本章 Checklist
+- [ ] 能区分 Business Task、LLM Call 和 Inference Request。
+- [ ] 能画出正常完成、取消和失败三条状态路径。
+- [ ] 能用关键时间点计算 admission、queue、prefill、decode 和 end-to-end。
+- [ ] 能解释为什么缺失阶段事件应记为未知，而不是零。
+- [ ] 能区分请求时间线与引擎 iteration 时间线。
+- [ ] 能区分服务端首 token 与客户端首 chunk。
+- [ ] 能运行 Demo，并解释三条样例请求的终态和阶段报告。
 
-- [ ] 能画出 Client -> Gateway -> Router -> Admission / Queue -> Engine Scheduler -> Worker -> Runtime -> GPU 的链路。
-- [ ] 能说明 Gateway 不负责模型计算，但会影响入口等待。
-- [ ] 能区分 Router、Admission / Queue 和 Engine Scheduler 各自管什么预算。
-- [ ] 能说出每个核心组件的输入和输出。
-- [ ] 能把 Ray Serve、KServe、Triton、Dynamo、vLLM 等系统映射到本章分层。
-- [ ] 能区分 Worker、Runtime 和 GPU 的职责。
-- [ ] 能比较 vLLM、SGLang、TensorRT-LLM、Llama.cpp 的架构取向。
-- [ ] 能说明本章 Demo 只验证最小服务架构，不做性能结论。
+### Advanced 延伸
+
+- [ ] 为真实推理引擎设计事件到归一化生命周期的适配表。
+- [ ] 在 Trace 中表达 preempted、resumed、prefix cache hit 和 remote KV transfer。
+- [ ] 设计跨 Gateway、Scheduler、Worker 和客户端的统一 Trace ID。
 
 ## 课后练习
 
-1. 画出你正在使用的一个 LLM 应用背后的推理系统架构，至少标出 Client、Gateway、Router、Admission / Queue、Engine Scheduler、Worker、Runtime 和 GPU。
-2. 选择 vLLM、SGLang、TensorRT-LLM、Llama.cpp 中两个框架，用 200 字以内比较它们的架构取向。
-3. 运行本章 Demo，标注输出中哪些字段来自客户端观察，哪些字段说明请求已经进入模型服务。
-4. 假设一个用户反馈“并发一上来就慢”，写出你会先检查的三个架构位置，不需要给出优化方案。
-5. 课堂讨论：把“企业问答服务”案例改成“代码补全服务”，哪些组件不变，哪些组件的优先级会变化？
+1. 为一次正常流式请求画出 `t0` 到 `t5`，并写出每个阶段的计算式。
+2. 修改 `sample-events.jsonl`，增加一条在 Queue 中取消的请求，观察哪些阶段仍可计算。
+3. 构造一条非法的 `queued -> first_token` 路径，运行 Demo 并解释为什么它缺少关键证据。
+4. 为你熟悉的 LLM 框架列出实际状态名，并映射到本章归一化事件。
+5. 画出两条并发请求与三个 engine iteration，分别标出请求时间线和引擎时间线。
+
+## 延伸阅读
+
+- [vLLM RequestStatus](https://docs.vllm.ai/en/stable/api/vllm/v1/request/)
+- [vLLM Metrics Design](https://docs.vllm.ai/en/latest/design/metrics/)
+- [vLLM Benchmark CLI：Latency Metrics](https://docs.vllm.ai/en/stable/benchmarking/cli/)

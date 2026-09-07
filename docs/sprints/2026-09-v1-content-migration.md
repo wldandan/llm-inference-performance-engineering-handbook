@@ -32,9 +32,29 @@
 4. 启动命令以 `vllm serve <model>` 开头。
 5. 章节图片链接存在、图号连续、必要章节结构完整。
 
+## Task CH02：Inference Lifecycle
+
+### 验收条件
+
+- [x] 区分业务任务、LLM 调用与推理请求三个层次。
+- [x] 用统一事件描述请求从接收、排队、Prefill、Decode 到结束的路径。
+- [x] 明确服务端首 token 与客户端首包不是同一个时间边界。
+- [x] 覆盖完成、取消、失败和抢占后的异常路径。
+- [x] Demo 能从 JSONL 事件计算 Queue、Prefill、Decode 等阶段时间。
+- [x] Demo 对非法状态跳转、时间戳逆序和错误 JSONL 给出明确错误。
+- [x] Review、Storyboard、10 张 SVG 线框与新版章节目标一致。
+- [x] 单元测试、章节结构校验和代表性 SVG 原尺寸渲染抽查通过。
+
+### 测试用例
+
+1. 完成请求被拆分为 admission、queue、prefill、decode、response tail 和 end-to-end。
+2. 取消请求只保留已经闭合的阶段时间，未闭合阶段返回空值而不是零。
+3. 多请求事件按 request ID 分组并统计终态。
+4. 非法状态跳转、逆序时间戳和错误 JSONL 被拒绝。
+5. CLI 能打印报告，也能保存 JSON 报告。
+
 ## 下一批任务
 
-1. 重写 Chapter 2：Inference Lifecycle，并消除与 Chapter 1 的重复。
-2. 将现有 Architecture 内容迁移到 Chapter 3。
-3. 新建 Chapter 4：Transformer 推理机制。
-4. 依次对齐 Chapter 5–7 的 GPU、指标和全局性能模型。
+1. 将现有 Architecture 内容迁移到 Chapter 3。
+2. 新建 Chapter 4：Transformer 推理机制。
+3. 依次对齐 Chapter 5–7 的 GPU、指标和全局性能模型。

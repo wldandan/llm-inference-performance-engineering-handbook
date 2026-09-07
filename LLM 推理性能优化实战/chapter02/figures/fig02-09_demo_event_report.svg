@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#333"/></marker><style>.t{font:700 32px Arial,sans-serif;fill:#111}.b{fill:#fff;stroke:#222;stroke-width:2}.h{font:600 20px Arial,sans-serif;fill:#111;text-anchor:middle}.s{font:16px Arial,sans-serif;fill:#555;text-anchor:middle}.l{stroke:#333;stroke-width:2;marker-end:url(#a)}.take{font:600 21px Arial,sans-serif;fill:#222;text-anchor:middle}</style></defs>
+  <rect width="1280" height="720" fill="#fff"/><text x="64" y="72" class="t">生命周期事件如何生成阶段报告</text>
+  <rect x="65" y="220" width="220" height="160" rx="10" class="b"/><text x="175" y="260" class="h">JSONL Events</text><text x="175" y="300" class="s">request_id</text><text x="175" y="330" class="s">event</text><text x="175" y="360" class="s">ts_ms</text>
+  <line x1="285" y1="300" x2="355" y2="300" class="l"/>
+  <rect x="360" y="220" width="220" height="160" rx="10" class="b"/><text x="470" y="260" class="h">Group</text><text x="470" y="300" class="s">by request_id</text><text x="470" y="335" class="s">preserve order</text>
+  <line x1="580" y1="300" x2="650" y2="300" class="l"/>
+  <rect x="655" y="220" width="220" height="160" rx="10" class="b"/><text x="765" y="260" class="h">Validate</text><text x="765" y="300" class="s">timestamps</text><text x="765" y="330" class="s">transitions</text><text x="765" y="360" class="s">terminal state</text>
+  <line x1="875" y1="300" x2="945" y2="300" class="l"/>
+  <rect x="950" y="220" width="260" height="160" rx="10" class="b"/><text x="1080" y="260" class="h">Stage Report</text><text x="1080" y="300" class="s">durations_ms</text><text x="1080" y="330" class="s">terminal_state</text><text x="1080" y="360" class="s">null if unknown</text>
+  <text x="640" y="460" class="h">先验证证据完整性，再计算已经闭合的时间段</text>
+  <rect x="120" y="575" width="1040" height="72" rx="10" fill="#f5f5f5" stroke="#aaa"/><text x="640" y="620" class="take">Key Takeaway：缺少事件意味着未知，不意味着零耗时</text>
+</svg>

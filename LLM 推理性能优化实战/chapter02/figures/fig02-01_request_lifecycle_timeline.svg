@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#333"/></marker>
+    <style>.title{font:700 32px Arial,sans-serif;fill:#111}.node{fill:#fff;stroke:#222;stroke-width:2}.event{font:600 18px Arial,sans-serif;fill:#111;text-anchor:middle}.time{font:16px Arial,sans-serif;fill:#555;text-anchor:middle}.stage{font:16px Arial,sans-serif;fill:#444;text-anchor:middle}.line{stroke:#333;stroke-width:2;marker-end:url(#arrow)}.take{font:600 21px Arial,sans-serif;fill:#222;text-anchor:middle}</style>
+  </defs>
+  <rect width="1280" height="720" fill="#fff"/>
+  <text x="64" y="72" class="title">推理请求生命周期与关键时间点</text>
+  <g>
+    <rect x="45" y="260" width="160" height="92" rx="8" class="node"/><text x="125" y="298" class="event">request_received</text><text x="125" y="328" class="time">t0</text>
+    <rect x="250" y="260" width="150" height="92" rx="8" class="node"/><text x="325" y="298" class="event">queued</text><text x="325" y="328" class="time">t1</text>
+    <rect x="445" y="260" width="150" height="92" rx="8" class="node"/><text x="520" y="298" class="event">scheduled</text><text x="520" y="328" class="time">t2</text>
+    <rect x="640" y="260" width="160" height="92" rx="8" class="node"/><text x="720" y="298" class="event">first_token</text><text x="720" y="328" class="time">t3</text>
+    <rect x="845" y="260" width="150" height="92" rx="8" class="node"/><text x="920" y="298" class="event">last_token</text><text x="920" y="328" class="time">t4</text>
+    <rect x="1040" y="260" width="160" height="92" rx="8" class="node"/><text x="1120" y="298" class="event">finished</text><text x="1120" y="328" class="time">t5</text>
+    <line x1="205" y1="306" x2="246" y2="306" class="line"/><text x="226" y="235" class="stage">Admission</text>
+    <line x1="400" y1="306" x2="441" y2="306" class="line"/><text x="421" y="235" class="stage">Queue</text>
+    <line x1="595" y1="306" x2="636" y2="306" class="line"/><text x="616" y="235" class="stage">Prefill</text>
+    <line x1="800" y1="306" x2="841" y2="306" class="line"/><text x="821" y="235" class="stage">Decode</text>
+    <line x1="995" y1="306" x2="1036" y2="306" class="line"/><text x="1016" y="220" class="stage">Response</text><text x="1016" y="242" class="stage">Tail</text>
+  </g>
+  <line x1="125" y1="415" x2="1120" y2="415" stroke="#777" stroke-width="2"/>
+  <line x1="125" y1="403" x2="125" y2="427" stroke="#777" stroke-width="2"/><line x1="1120" y1="403" x2="1120" y2="427" stroke="#777" stroke-width="2"/>
+  <text x="622" y="450" class="stage">End-to-End = t5 - t0</text>
+  <rect x="120" y="575" width="1040" height="72" rx="10" fill="#f5f5f5" stroke="#aaa"/><text x="640" y="620" class="take">Key Takeaway：没有事件边界，就没有可复核的阶段时间</text>
+</svg>

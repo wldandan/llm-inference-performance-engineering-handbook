@@ -2,51 +2,53 @@
 
 ## 总体评价
 
-第 2 章已从旧版“LLM 推理流程”收敛为新版 Outline 要求的 `LLM Inference Architecture`。章节采用 Template A，重点回答“LLM 推理系统长什么样”，主线围绕 Client、Gateway、Scheduler、Worker、Runtime、GPU 和框架架构取向展开。
+第 2 章已按 v1.0 大纲重写为 `Inference Lifecycle`。主线集中在归一化状态、关键时间点、正常与异常终态、请求时间线与引擎时间线、服务端与客户端观测边界。Demo 用可离线运行的事件分析器把概念落到具体输出，符合 Core Track 的入门定位。
 
 ## 结构问题
 
-- 已包含学习目标、核心问题、核心内容、Demo / 实验、本章总结、课后练习和自检清单。
-- 章节从全局架构进入入口层、调度层、执行层、部署形态和框架取向，顺序符合“先系统，后技术”的课程设计。
-- Demo 只验证最小服务架构能跑通，没有把第 2 章写成 Benchmark 章节。
+- Chapter 1 与 Chapter 2 的分工清楚：前者跑通服务并观察流式输出，后者建立正式生命周期模型。
+- Chapter 2 没有继续讲 Gateway、Router、Worker 等组件职责，这部分留给 Chapter 3。
+- 时间分段用于定义生命周期边界，没有提前进入 Chapter 6 的指标统计、分位数或 Benchmark 方法。
+- 主案例和补充案例分别覆盖并发、长 Prompt 与 Agent 取消传播，仍停留在事件和状态层。
 
 ## 技术与术语问题
 
-- 术语保持为 Client、Gateway、Scheduler、Worker、Runtime、GPU、KV Cache、vLLM、SGLang、TensorRT-LLM、Llama.cpp。
-- TTFT、ITL、tokens/s 只作为 demo 脚本输出字段提及，没有在本章展开指标定义或优劣判断。
-
-## 课堂案例补充
-
-本章已补充主课堂案例、补充案例 A/B 和讨论题，用于支撑 20 分钟以上讲授。案例只服务本章边界，不展开后续章节的完整优化方案。
+- `request_received -> queued -> scheduled -> first_token -> last_token -> finished` 被明确标注为课程归一化事件，不冒充 vLLM 内部 API。
+- Queue、Prefill 和 Decode 的边界与 vLLM 当前指标设计相符，同时说明了不同系统可能采用不同观测点。
+- 服务端 `first_token`、`first_chunk_sent` 和客户端 `first_chunk_received` 已分开，避免把生成时间与网络返回混算。
+- 取消与失败路径保留已经闭合的时间段，缺失阶段返回未知值，不写成零耗时。
 
 ## 内容缺口
 
-- 后续可以根据真实教学环境补充统一硬件和软件版本，例如 GPU 型号、vLLM 版本、Python 版本。本章规范未强制这些信息，因此当前只保留通用命令。
-- 如果后续确认目标读者背景，可以在开头增加“前置知识”短段，但不应改变章节主线。
+- 当前 Demo 使用合成事件，尚未提供 vLLM、SGLang 或 OpenTelemetry Trace 到归一化事件的适配器。
+- 抢占、恢复、Prefix Cache 命中和 Remote KV 只列为 Advanced 延伸；这是有意保留的章节边界。
+- Chapter 3 迁移时需要接住“事件由哪个组件产生、Trace 应在哪里采集”这一问题。
 
 ## 可删减内容
 
-- 当前已删除旧版中 Prefill、Decode、KV Cache 生命周期、Compute Bound vs Memory Bound 和 Profiling Workflow 的大段展开。这些内容应移至第 2、4、9、10、13、14 等后续章节。
+- 不建议再增加框架内部状态枚举。列得过细会把生命周期章节写成特定版本源码导读。
+- 不应在本章加入 TTFT / TPOT 的负载对比或优化结论；这些内容属于 Chapter 6 及后续分析章节。
 
 ## 推荐插图位置
 
-- 图2-1 放在核心问题后，建立全局地图。
-- 图2-2 到图2-5 分别跟随组件职责段落。
-- 图2-6 放在部署形态段落。
-- 图2-7 放在框架取向段落。
-- 图2-8 放在架构到性能分析的过渡段。
-- 图2-9 放在 Demo 段。
-- 图2-10 放在常见误区后，强调章节边界。
+1. 章节开头用总时间线固定六个关键事件。
+2. 三层对象、归一化状态机、Queue 边界和 Prefill 边界分别单独成图。
+3. Decode 图要同时表现多轮 step 与 KV Cache 增长。
+4. 客户端 / 服务端边界、异常终态清理和 Demo 数据流各用一张图。
+5. 末图只说明与 Chapter 1、3、4、6、21、24 的边界，不列优化技术清单。
 
-## 修改优先级
+## 完成状态与后续优先级
 
-1. 2026-09-03 排序调整：Lifecycle 已移到第 1 章、排在本章之前，本章开头已改为回指第 1 章（"第 1 章已经带你跟着一个请求走了一遍生命周期……"），不再是"后续第 3 章会展开生命周期"的正向预告。第 3 章现在是 GPU 架构基础，与 Request/Queue/Prefill/Decode/Response/KV Cache 生命周期无关。
-2. 如果 demo 脚本继续输出性能字段，课堂说明应持续强调本章不做指标结论。
-3. 如果要正式制图，应先确认本 storyboard，再制作最终图。
+1. 已完成：生成并验证 10 张生命周期线框图，旧 Architecture 图片已迁出并保留给 Chapter 3。
+2. 已完成：Demo 的 9 项单元测试与样例 CLI 通过，覆盖正常、取消、失败三类路径。
+3. P1：Chapter 3 完成后复查相邻章节交叉引用。
+4. P2：后续增加一个真实框架 Trace 适配器，但不阻塞本章 Core 版本。
 
 ## 验收建议
 
-- Markdown 图片链接应全部存在。
-- 图号应从图 2-1 到图 2-10 连续。
-- 章节标题和 Outline 中 `Chapter 2 LLM Inference Architecture` 一致。
-- 不应出现大段来自已发布参考书的原文、标题结构或图片复制。
+- 章节标题、学习目标、Demo、总结和练习都回答 Inference Lifecycle。
+- 正文恰好引用图 2-1 到图 2-10，文件存在且 SVG 可解析。
+- `python3 -m unittest test_lifecycle_trace.py` 全部通过。
+- 样例 CLI 输出 3 条请求，其中 finished、cancelled、failed 各 1 条。
+- 非法状态跳转和逆序时间戳会被拒绝。
+- 合成数据和真实性能数据的边界写清楚。

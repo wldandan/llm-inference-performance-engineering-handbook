@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#333"/></marker><style>.t{font:700 32px Arial,sans-serif;fill:#111}.b{fill:#fff;stroke:#222;stroke-width:2}.e{font:600 18px Arial,sans-serif;fill:#111;text-anchor:middle}.l{stroke:#333;stroke-width:2;marker-end:url(#a)}.d{stroke:#666;stroke-width:2;stroke-dasharray:8 7;fill:none;marker-end:url(#a)}.lab{font:17px Arial,sans-serif;fill:#555;text-anchor:middle}.take{font:600 21px Arial,sans-serif;fill:#222;text-anchor:middle}</style></defs>
+  <rect width="1280" height="720" fill="#fff"/><text x="64" y="72" class="t">归一化请求状态机</text><text x="1130" y="70" class="lab">Main Path</text>
+  <g>
+    <rect x="40" y="205" width="165" height="70" rx="35" class="b"/><text x="122" y="247" class="e">received</text>
+    <rect x="245" y="205" width="145" height="70" rx="35" class="b"/><text x="317" y="247" class="e">queued</text>
+    <rect x="430" y="205" width="155" height="70" rx="35" class="b"/><text x="507" y="247" class="e">scheduled</text>
+    <rect x="625" y="205" width="165" height="70" rx="35" class="b"/><text x="707" y="247" class="e">first token</text>
+    <rect x="830" y="205" width="155" height="70" rx="35" class="b"/><text x="907" y="247" class="e">last token</text>
+    <rect x="1025" y="205" width="165" height="70" rx="35" class="b"/><text x="1107" y="247" class="e">finished</text>
+    <line x1="205" y1="240" x2="241" y2="240" class="l"/><line x1="390" y1="240" x2="426" y2="240" class="l"/><line x1="585" y1="240" x2="621" y2="240" class="l"/><line x1="790" y1="240" x2="826" y2="240" class="l"/><line x1="985" y1="240" x2="1021" y2="240" class="l"/>
+  </g>
+  <rect x="350" y="405" width="210" height="76" rx="10" class="b"/><text x="455" y="450" class="e">cancelled</text>
+  <rect x="720" y="405" width="210" height="76" rx="10" class="b"/><text x="825" y="450" class="e">failed</text>
+  <path d="M317 275 C317 335 410 340 440 401" class="d"/><path d="M707 275 C707 335 520 350 480 401" class="d"/><path d="M507 275 C507 345 750 345 790 401" class="d"/><path d="M907 275 C907 335 860 350 835 401" class="d"/>
+  <text x="640" y="525" class="lab">Terminal States</text>
+  <rect x="120" y="575" width="1040" height="72" rx="10" fill="#f5f5f5" stroke="#aaa"/><text x="640" y="620" class="take">Key Takeaway：正常、取消和失败都必须进入明确终态</text>
+</svg>

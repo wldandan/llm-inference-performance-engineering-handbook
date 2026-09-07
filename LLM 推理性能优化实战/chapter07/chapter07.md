@@ -1,259 +1,363 @@
-# 第 7 章 Profiling Toolchain
+# 第 7 章 Global Performance Model
+
+前六章分别讨论了服务入口、推理生命周期、系统架构、Transformer、GPU 约束和性能指标。到这里，我们已经认识了许多局部，却还缺一张能把它们放回同一条因果链的地图。
+
+这一章建立全书的 Global Performance Model（全局性能模型）。它不是一个新的性能指标，也不是一条看到慢请求就能自动给出答案的公式。它是一套组织问题的方法：先确认用户看到的结果，再还原工作负载和执行路径，把时间归到具体阶段，把阶段映射到资源约束，最后用证据验证候选原因。
 
 ## 学习目标
 
 学完本章后，你应该能够：
 
-- 解释本章为什么要回答：如何采集推理系统不同层次的性能数据？
-- 把性能分析问题拆成 Baseline、Workload、指标和证据。
-- 区分现象、假设、Profiling 证据和 Root Cause。
-- 设计一个不越过本章边界的 Demo 或课堂讨论。
-- 使用本章 Checklist 为后续优化章节准备输入。
+- 用 Outcome、Workload、Stage、Resource、Evidence 五层描述一次性能问题；
+- 分解普通 LLM 请求的 TTFT 与 E2E 路径；
+- 用依赖图和 Critical Path（关键路径）分析存在并行分支的 RAG 与 Agent；
+- 根据慢阶段提出候选假设，并说明还要采集哪些证据；
+- 识别“最长阶段就是根因”“节点时间全部相加”等常见误判；
+- 运行一个离线 Demo，生成可审计的全局性能报告。
 
-本章属于 Part 2 Performance Analysis。它只建立分析方法，不提前给出 Prefill、Decode、Serving 或 Scalability 的优化结论。
+## 本章边界
+
+本章回答的是“如何把一次端到端性能问题放进完整模型”。它不会提前给出量化、KV Cache、调度器或 CUDA Kernel 的优化配方，也不替代正式 Benchmark 和 Profiling。
+
+全局模型负责决定下一步应该验证什么。第 8 章会把 Workload 和实验方法固定下来，第 9 章再介绍如何采集服务端、Runtime 与 GPU 证据。
 
 ## 核心问题
 
 本章围绕四个问题展开：
 
-1. 如何采集推理系统不同层次的性能数据？
-2. 这个问题在完整推理系统里落在哪些组件和阶段？
-3. 哪些证据足以支持结论，哪些只是表面现象？
-4. 如何把方法沉淀成后续章节可以复用的检查动作？
+1. 如何把用户看到的慢，映射到一次完整请求或任务的执行路径？
+2. 哪些阶段可以近似相加，哪些场景必须使用依赖图？
+3. 怎样从关键阶段提出候选假设，又不把它误写成 Root Cause？
+4. RAG 与 Agent 增加了哪些 LLM 服务之外的性能路径？
 
-![toolchain_overview](figures/fig07-01_toolchain_overview.svg)
+## 7.0 一张图串起前六章
 
-图7-1：先确定要观察哪一层。
+分析一次性能问题，可以从五层连续追问：
 
-## 7.1 先确定要观察哪一层
+1. **Outcome**：用户或业务到底哪里变差了？是 TTFT、E2E、Goodput、成本，还是任务成功率？
+2. **Workload**：这个结果发生在什么输入长度、输出长度、并发、请求分布和硬件条件下？
+3. **Stage**：时间实际花在入口、排队、预处理、Prefill、Decode、检索、工具调用还是返回链路？
+4. **Resource**：候选阶段受算力、显存容量、显存带宽、Kernel 启动、CPU、网络或外部依赖中的哪一类约束？
+5. **Evidence**：什么 Trace、指标、日志或对照实验能够支持或推翻这个判断？
 
-Profiling 的第一步不是打开工具，而是判断问题可能发生在哪一层。入口、队列、调度、Worker、Runtime、GPU kernel 都有不同证据。层级判断越清楚，工具选择越轻，采集成本越低。
+![global_performance_model](figures/fig07-01_global_performance_model.svg)
 
-![nvidia_smi_scope](figures/fig07-02_nvidia_smi_scope.svg)
+图7-1：Global Performance Model 把结果、负载、阶段、资源与证据连成闭环。
 
-图7-2：先确定要观察哪一层。
+这五层不能跳着用。比如“P95 TTFT 上升”只描述了 Outcome；“GPU Utilization 低”只是一条 Resource Signal。两者之间还缺 Workload、Stage 和因果证据。直接据此得出“换更大的 GPU”，中间跨过了三层。
 
-## 7.2 nvidia-smi：低成本资源快照
+这个模型也不是单向瀑布。证据不支持原假设时，要回到阶段划分甚至测量边界重新检查。性能工程的可靠性，恰恰来自这种可以被推翻、可以回退的过程。
 
-nvidia-smi 适合做第一层资源快照。它能快速看到 GPU 利用率、显存占用、进程、功耗和温度，但不能解释 kernel 为什么慢，也不能区分 Prefill 和 Decode。它的作用是快速排除明显资源异常。
+## 7.1 普通 LLM 请求：先拆端到端时间
 
-![vllm_profile_scope](figures/fig07-03_vllm_profile_scope.svg)
-
-图7-3：nvidia-smi：低成本资源快照。
-
-## 7.3 vLLM Profiling：框架内执行状态
-
-vLLM Profiling 更靠近 LLM serving engine。它能帮助观察请求排队、batch 形成、Prefill / Decode 时间、KV Cache 使用等框架内状态。它回答的是“engine 怎么调度请求”，不是单个 CUDA kernel 的微观效率。
-
-![pytorch_profiler_scope](figures/fig07-04_pytorch_profiler_scope.svg)
-
-图7-4：vLLM Profiling：框架内执行状态。
-
-## 7.4 PyTorch Profiler：算子与 Python 边界
-
-PyTorch Profiler 适合分析 Python、算子调用和框架开销之间的边界。如果问题怀疑来自 tokenizer、数据准备、采样逻辑或 PyTorch eager 执行，它比 GPU 硬件工具更直接。
-
-![nsys_timeline](figures/fig07-05_nsys_timeline.svg)
-
-图7-5：PyTorch Profiler：算子与 Python 边界。
-
-## 7.5 Nsight Systems：跨 CPU/GPU Timeline
-
-Nsight Systems 适合看跨 CPU/GPU 的时间线。它能把 CPU 调度、CUDA API、kernel launch、GPU 执行和空洞放在一张 timeline 上，帮助判断 GPU 是在算、在等 CPU，还是在等待调度形成 batch。
-
-![ncu_kernel_view](figures/fig07-06_ncu_kernel_view.svg)
-
-图7-6：Nsight Systems：跨 CPU/GPU Timeline。
-
-## 7.6 Nsight Compute：单 kernel 深入分析
-
-Nsight Compute 面向单个 kernel 的深入分析。它适合在已经定位到某个 attention、GEMM 或采样 kernel 后使用，用来观察 occupancy、memory throughput、warp stall 和访存效率。它不适合作为排障第一步。
-
-![tool_selection_tree](figures/fig07-07_tool_selection_tree.svg)
-
-图7-7：Nsight Compute：单 kernel 深入分析。
-
-## 7.7 工具组合策略
-
-工具组合策略要遵守从轻到重、从全局到局部的顺序。先用客户端和服务端指标确认现象，再用资源快照和框架 profiling 缩小范围，最后才进入 timeline 或 kernel 分析。
-
-![profiling_overhead](figures/fig07-08_profiling_overhead.svg)
-
-图7-8：工具组合策略。
-
-## 7.8 Demo：从轻量观测到深度 Profiling
-
-Demo 的目标是演示工具选择路径。先观察客户端延迟和服务端日志，再看 nvidia-smi 和框架指标；只有当证据指向 GPU 执行路径时，才引入 Nsight Systems 或 Nsight Compute。
-
-可以把 Demo 设计成三轮观察。
-
-第一轮只看轻量指标：
+对一条没有并行分支的普通 LLM 请求，客户端观察到的端到端延迟可以近似写成：
 
 ```text
-客户端：
-  TTFT P95 = 1800 ms
-  TPOT avg = 38 ms
-  error rate = 0
-
-服务端：
-  queue length = rising
-  running requests = stable
-
-nvidia-smi:
-  GPU util = 42%
-  memory used = 62GB / 80GB
+E2E ≈ T_ingress
+    + T_gateway/admission
+    + T_queue
+    + T_preprocess
+    + T_prefill
+    + T_decode
+    + T_response_tail/egress
 ```
 
-此时不能直接打开 Nsight Compute，因为证据还没有指向单个 kernel。更合理的下一步是看框架内的 batch 和 scheduler 状态。
+这里的“近似”很重要。真实系统里可能存在流式返回、CPU/GPU 重叠、异步日志以及请求批处理。这个加法只适用于边界明确、阶段近似串行的请求视图，不能无条件套到所有系统。
 
-第二轮看 engine profiling：
+![request_latency_decomposition](figures/fig07-02_request_latency_decomposition.svg)
+
+图7-2：普通请求的端到端延迟由入口、等待、模型执行和返回链路共同组成。
+
+每个阶段回答不同问题：
+
+| 阶段 | 它包含什么 | 常见观测 |
+|---|---|---|
+| Ingress / Gateway | 网络接入、鉴权、路由、限流 | 接入日志、状态码、网络时间戳 |
+| Queue / Admission | 等待调度、等待容量、准入控制 | queue wait、waiting requests、拒绝原因 |
+| Preprocess | 模板、tokenization、输入整理 | CPU profile、prompt tokens、预处理耗时 |
+| Prefill | 处理全部输入 token，建立初始 KV Cache | prefill time、输入长度、GPU timeline |
+| Decode | 逐步生成输出 token | output tokens、TPOT/ITL、decode timeline |
+| Response tail / Egress | 序列化、流关闭、网络返回 | 服务端结束时间与客户端结束时间 |
+
+分解的价值不是把请求画得更复杂，而是避免把所有慢都归给“模型”。如果 Queue 占了 70%，优化一个 GEMM Kernel 即使成功，端到端收益也可能很小。
+
+## 7.2 TTFT 与 E2E 走的不是同一条终点线
+
+TTFT 关注首个可消费内容何时到达客户端。E2E 关注完整响应何时结束。以流式请求为例：
 
 ```text
-vLLM / engine profile:
-  waiting requests increased
-  average batched tokens lower than expected
-  prefill requests frequently delayed
+TTFT ≈ ingress + gateway + queue + preprocess + prefill
+       + first-decode-step + first-chunk-egress
+
+E2E  ≈ TTFT + remaining-decode + remaining-stream/egress
 ```
 
-这说明问题更接近 queue / scheduler / workload 组合，而不是 GPU 算子本身。
+![ttft_e2e_paths](figures/fig07-03_ttft_e2e_paths.svg)
 
-第三轮才决定是否进入 Timeline：
+图7-3：TTFT 在首个内容到达时结束，E2E 继续覆盖剩余生成与返回。
+
+因此，两个看似矛盾的现象可以同时成立：
+
+- TTFT 变差而 TPOT 基本不变：更像入口、排队、预处理或 Prefill 路径变化；
+- TTFT 基本不变而 E2E 变差：先检查输出长度和 Decode 节奏；
+- TTFT 与 E2E 同时变差：可能是共享前缀阶段变慢，也可能是负载同时改变了多个阶段。
+
+这里沿用第 6 章的测量合同：必须说明时钟、起止事件和首“内容块”是否等于首 token。客户端 TTFT 与服务端 TTFT 可以用于关联分析，但边界不同，不能直接相减。
+
+## 7.3 慢阶段只能生成候选假设
+
+阶段分解回答“时间在哪里”，还没有回答“为什么”。从阶段时间到工程动作，中间至少要经过“候选假设”和“验证证据”两步。
+
+![stage_to_hypothesis](figures/fig07-04_stage_to_hypothesis.svg)
+
+图7-4：阶段异常先生成候选假设，再由对应证据确认或推翻。
+
+下面这张表给出常见映射，但每一项都只是起点：
+
+| 慢阶段 | 候选假设 | 下一步证据 |
+|---|---|---|
+| Ingress / Egress | 网络、序列化或网关处理变慢 | 客户端/服务端时间戳、payload 大小、网络 Trace |
+| Queue | 容量不足、调度不公平、Admission 限制、KV Cache 压力 | waiting requests、queue wait、batch 状态、准入原因 |
+| Preprocess | Tokenization、模板或 CPU 处理变慢 | CPU profile、prompt tokens、预处理明细 |
+| Prefill | 输入变长、计算压力、带宽压力或批处理变化 | 输入长度分布、prefill trace、算力/带宽指标 |
+| Decode | 输出变长、带宽压力、调度空洞或启动开销 | output tokens、ITL/TPOT、scheduler 与 kernel timeline |
+| Retrieval / Tool | 外部服务、索引、限流、超时或重试 | 分布式 Trace、依赖指标、timeout/retry 计数 |
+
+“Decode 最慢”不等于“Decode 有故障”。自回归生成本来就可能占据最长时间。如果输出 token 数从 100 增长到 500，Decode 变长首先是工作量变化；只有控制输出长度后仍出现异常，才值得继续追查资源或调度。
+
+## 7.4 Workload 会移动瓶颈
+
+性能结论只在它对应的 Workload 下成立。以下变化都可能把瓶颈推向另一处：
+
+- 输入 token 增长，Prefill 工作量与 KV Cache 占用增加；
+- 输出 token 增长，Decode 时长和输出传输量增加；
+- 并发增长，单请求执行问题可能转化为 Queue 和 Scheduler 问题；
+- Batch、精度、硬件或并行策略改变，计算、带宽、容量与通信占比会重排；
+- RAG 召回更多文档，既增加检索/重排时间，也会通过上下文长度影响 Prefill；
+- Agent 增加步骤、工具和重试，任务路径会变长，分支结构也会改变。
+
+![workload_changes_bottleneck](figures/fig07-05_workload_changes_bottleneck.svg)
+
+图7-5：输入、输出、并发与编排结构变化，会把瓶颈推向不同阶段。
+
+所以“这个模型是计算受限还是带宽受限”不是脱离条件的永久标签。更准确的表达是：在给定模型、硬件、输入/输出长度、并发和执行策略下，当前关键阶段表现出哪类约束。
+
+## 7.5 有并行分支时，用 Critical Path，不要把节点全加起来
+
+普通请求可以近似看成一条串行链，但 RAG 和 Agent 往往含有并行检索、并行工具或条件分支。此时，把所有节点时间相加会高估用户真正等待的时间。
+
+可以把一次任务表示成有向无环依赖图（DAG）：
+
+- 节点表示一个有明确起止点的阶段；
+- 边表示“后一个节点必须等待前一个节点完成”；
+- Critical Path 是从起点到终点的最长依赖路径；
+- 并行分支汇合时，等待时间由最晚完成的必要分支决定，而不是所有分支之和。
+
+![critical_path](figures/fig07-06_critical_path.svg)
+
+图7-6：并行分支的端到端时间由最长依赖路径决定，而不是节点耗时总和。
+
+图中的两个检索分支分别耗时 100 ms 和 200 ms。如果它们同时开始，汇合点需要等待 200 ms，而不是 300 ms。整个图的节点时间之和为 630 ms，Critical Path 为 530 ms，因此有 100 ms 没有落在最长依赖路径上。
+
+关键路径带来两个直接判断：
+
+1. 优化不在关键路径上的节点，当前这次任务的 E2E 可能完全不变；
+2. 优化关键路径上的节点后，关键路径可能转移到另一条分支，收益不会永远线性延续。
+
+它也有边界。Critical Path 依赖输入 Trace 的完整性，只解释这次依赖图的时间结构，不自动解释 Root Cause。共享资源争抢、批处理耦合和异步执行还需要系统级证据。
+
+## 7.6 RAG：外部检索与 LLM 路径互相影响
+
+RAG 不能简单压成 `Queue + Prefill + Decode`。一条典型路径可能是：入口之后并行进行向量检索与关键词检索，合并结果，再 Rerank、构造上下文，最后进入 LLM Prefill 和 Decode。
+
+![rag_performance_path](figures/fig07-07_rag_performance_path.svg)
+
+图7-7：RAG 的检索、重排、上下文构造与 LLM 推理共同决定端到端性能。
+
+分析 RAG 时至少要保留两类联系：
+
+- **时间联系**：检索和重排直接进入任务 Critical Path；
+- **工作量联系**：文档数量、片段长度和上下文拼接方式会改变 prompt tokens，进而改变 Prefill 和 KV Cache 压力。
+
+这意味着“把 Top-K 从 20 降到 5”可能同时缩短 Rerank 和 Prefill，但不能只看速度。它也可能降低召回率和答案质量。RAG 优化报告至少要同时给出延迟、检索质量或任务质量护栏，以及输入 token 的变化。
+
+一个实用的 RAG 记录结构是：
 
 ```text
-Nsight Systems:
-  CPU side gap before GPU kernels
-  GPU kernels are short but launch intervals large
+request_id
+├─ dense_retrieval: start/end, result_count
+├─ keyword_retrieval: start/end, result_count
+├─ rerank: start/end, candidate_count
+├─ context_build: start/end, prompt_tokens
+└─ llm: queue/prefill/decode, output_tokens
 ```
 
-课堂讨论：这时应该继续深入 Nsight Compute，还是回头检查 CPU、Scheduler 和请求分布？这能训练学员根据证据选工具，而不是根据工具名选工具。
+如果只记录 LLM 服务内的 TTFT，就看不到检索路径；如果只记录检索耗时，也解释不了上下文变长后 Prefill 的变化。
 
-## 7.9 课堂案例：GPU 利用率低时先开什么工具
+## 7.7 Agent：优化对象从单次请求变成完整任务
 
-线上服务 GPU 利用率只有 35%，业务方要求立刻打开 Nsight Compute。更合理的做法是先用 nvidia-smi 和服务端日志确认是否有队列空洞，再用 vLLM Profiling 看 batch 形成，最后才决定是否进入 kernel 级分析。
+Agent 的执行图更动态。它可能先调用一次 LLM 规划，再并行调用多个工具，汇合后再次调用 LLM；失败时还会超时、重试、反思或改走另一条分支。
 
-课堂讨论：
+![agent_performance_path](figures/fig07-08_agent_performance_path.svg)
 
-1. 这个案例最容易被误判成哪个问题？
-2. 还缺哪两类证据才能进入优化方案？
+图7-8：Agent 任务包含重复 LLM 调用、并行工具、汇合、重试与上下文增长。
 
-### 补充案例 A：换一个工作负载
+因此，Agent 性能至少要区分三种尺度：
 
-CPU 占用高但 GPU 空闲时，PyTorch Profiler 或服务层日志可能比 GPU kernel 工具更先发挥作用。
+| 尺度 | 关注点 | 示例指标 |
+|---|---|---|
+| 单次 LLM 调用 | 一次推理是否变慢 | TTFT、TPOT、tokens、queue time |
+| 单个工具调用 | 外部依赖是否阻塞 | tool latency、timeout、retry、error rate |
+| 完整任务 | 用户最终等待多久、任务是否完成 | task E2E、task success、LLM calls/task、tool calls/task、cost/task |
 
-讨论重点：这个补充案例改变的是业务场景还是分析方法？
+只优化单次 LLM 调用，并不保证 Agent 任务明显变快。假设 LLM 一共占 400 ms，而串行工具与重试占 4 s，把 LLM 加速 30% 对任务 E2E 的影响仍然有限。
 
-### 补充案例 B：换一个系统条件
+Agent 还有一个累积效应：每轮把历史和工具结果重新放进上下文，会让后续 Prefill 越来越长。性能模型应保留每次 LLM 调用的 prompt/output tokens，而不是把多次调用合并成一个平均值。
 
-一次深度 Profiling 会改变系统开销，课堂讨论应说明何时在生产旁路采样，何时在复现实验环境采样。
+## 7.8 Demo：从依赖图生成全局性能报告
 
-讨论重点：哪些结论仍然成立，哪些必须重新验证？
+本章 Demo 不需要 GPU，也不伪造 Benchmark。它读取一个合成的 LLM、RAG 或 Agent 依赖图，计算 Critical Path、并行重叠和关键路径阶段占比，再为每个候选阶段列出待采证据。
 
-### 贯穿案例：同一个告警的工具升级路径
+![demo_global_report](figures/fig07-09_demo_global_report.svg)
 
-继续使用企业问答服务。线上告警说 P95 TTFT 上升，但错误率没有变化。工具选择可以这样升级：
+图7-9：Demo 从合成依赖图生成关键路径、阶段占比和待验证假设。
+
+进入 Demo 目录后，可以分别运行三类样例：
+
+```bash
+python3 performance_model.py sample_llm_request.json
+python3 performance_model.py sample_rag.json
+python3 performance_model.py sample_agent.json
+```
+
+也可以保存 Agent 报告：
+
+```bash
+python3 performance_model.py sample_agent.json \
+  --output global-performance-report.json
+```
+
+样例中的 Agent 有两条并行工具分支。报告会保留完整路径，并输出类似结果：
 
 ```text
-Step 1: Gateway / access log
-  确认请求已经进入正确模型，没有大量 4xx / 5xx。
+mode: synthetic_global_performance_model
+critical_path:
+  llm_plan -> tool_crm -> merge_tools -> llm_answer
 
-Step 2: client metrics
-  确认 TTFT 变差是否稳定，TPOT 是否同时变差。
-
-Step 3: nvidia-smi / dashboard
-  确认 GPU 是否空闲、显存是否接近上限。
-
-Step 4: engine profiling
-  查看 queue、running requests、batch tokens、prefill/decode 时间。
-
-Step 5: Nsight Systems
-  当怀疑 CPU/GPU timeline 存在空洞时再打开。
-
-Step 6: Nsight Compute
-  只有当某个 kernel 被定位为核心耗时后才进入。
+hypothesis for tool_crm:
+  external_tool_or_dependency_delay
+status:
+  needs_evidence
+evidence_needed:
+  tool_latency_ms, dependency_trace, timeout_and_retry_count
 ```
 
-这条路径能让学员看到：Profiling Toolchain 是一套升级策略，不是一堆工具名。不同工具对应不同证据粒度，也对应不同成本。
+请注意 `needs_evidence`。程序不会生成 `root_cause` 字段，因为输入只有阶段时长与依赖关系。要确认根因，仍需真实 Trace、服务指标、Workload 对照和 GPU Profiling。
 
-![demo_tool_path](figures/fig07-09_demo_tool_path.svg)
+Demo 还会拒绝循环依赖、未知依赖、重复节点 ID 和负时长，防止一张结构不合法的图产生貌似精确的答案。运行测试：
 
-图7-9：课堂案例：GPU 利用率低时先开什么工具。
+```bash
+python3 -m unittest discover -s . -p 'test_*.py' -v
+```
+
+## 7.9 课堂案例：企业问答为什么“GPU 不忙但用户很慢”
+
+企业问答服务出现以下现象：
+
+```text
+P95 task E2E: 1.8 s -> 4.9 s
+LLM TTFT:     0.9 s -> 1.0 s
+GPU util:     45%
+error rate:   unchanged
+```
+
+只看 GPU 利用率，很容易得出“GPU 没吃满”的模糊结论。放进全局模型后，分析顺序会变成：
+
+1. Outcome：恶化的是完整任务 E2E，LLM TTFT 只增加 0.1 s；
+2. Workload：确认查询类型、Top-K、并发和文档库版本是否变化；
+3. Stage：通过 Trace 发现关键词检索从 180 ms 增长到 3.1 s，并位于 Critical Path；
+4. Resource：问题更接近外部检索依赖，而不是 GPU 执行；
+5. Evidence：查看检索服务队列、慢查询、索引发布记录，并用相同查询集复现。
+
+此时，GPU 不忙是结果，不是根因。请求尚未到达 LLM 或无法连续到达，GPU 自然会出现空洞。
+
+### 补充案例 A：RAG 降低 Top-K 后为何没有线性加速
+
+Top-K 从 20 降到 10 后，Rerank 减少了 80 ms，但 E2E 只减少 20 ms。Trace 显示 Rerank 与另一项元数据读取部分重叠，而且原来的 Critical Path 经过元数据分支。
+
+讨论重点：局部耗时下降不等于端到端收益相同；还要重新计算关键路径，并检查答案质量护栏。
+
+### 补充案例 B：Agent 单次 LLM 加速后任务仍然很慢
+
+某 Agent 把每次 LLM 调用从 600 ms 优化到 420 ms，但任务 P95 几乎不变。完整 Trace 显示工具超时触发了两次串行重试，增加了 5 s。
+
+讨论重点：优化对象是否选错了尺度？应该先看单次调用指标，还是完整任务的 Critical Path 与重试分布？
 
 ## 7.10 常见误区
 
-误区一：把单次运行结果当成性能结论。
+### 误区一：最长阶段就是根因
 
-单次结果只能说明那一次发生了什么，不能说明系统稳定能力。正式分析必须说明重复次数、波动范围和异常值处理方式。
+最长阶段只说明它值得优先解释。阶段可能因为输入更多而合理变长，也可能只是等待另一个未被记录的依赖。正确措辞应是“候选瓶颈”或“优先验证对象”。
 
-误区二：看到一个指标变化就直接选择优化技术。
+### 误区二：所有节点时间相加就是 E2E
 
-指标只是现象。进入优化之前，要先证明它来自哪个组件、哪个阶段、哪类资源约束。
+只有严格串行的节点才能直接相加。存在并行检索、并行工具或 CPU/GPU 重叠时，要使用依赖关系和 Critical Path。
 
-误区三：只保留支持自己判断的数据。
+### 误区三：只分析平均请求
 
-性能工程要能被复核。反例、波动和限制条件同样要写进报告。
+平均输入长度和平均 E2E 可能掩盖长上下文、长输出、重试和慢租户。至少要按关键 Workload 维度分桶，并观察 P50/P95/P99。
 
-![profiling_boundary](figures/fig07-10_profiling_boundary.svg)
+### 误区四：把 GPU 指标当业务结果
 
-图7-10：Profiling Toolchain 的章节边界。
+GPU Utilization、带宽和显存占用用于解释系统状态。用户关心的是延迟、成功、质量和成本。资源更忙不等于 Goodput 更高。
 
-## 7.11 Profiling 选择模板
+### 误区五：优化局部后不重算路径
 
-Profiling 工具不是越重越好。工具越深入，开销越高，对运行环境的要求也越严格。工程上更稳的做法，是先用轻量观测缩小范围，再逐步进入框架级和 kernel 级工具。
+一条分支缩短后，另一条分支可能成为新的 Critical Path。每轮实验都要重新采样，而不是沿用优化前的瓶颈排序。
 
-可以用下面的选择模板：
+### 误区六：RAG 与 Agent 只看 LLM Server
 
-| 你看到的现象 | 先用什么 | 下一步可能用什么 | 暂时不要急着用什么 |
-|---|---|---|---|
-| 请求完全进不来 | Gateway 日志、HTTP 状态码、服务健康检查 | 服务端 access log、路由日志 | Nsight Compute |
-| TTFT 变长 | 客户端时间戳、队列长度、vLLM Profiling | Nsight Systems、PyTorch Profiler | 直接调 kernel 参数 |
-| TPOT 变差 | Decode 时间、GPU Utilization、显存状态 | Nsight Systems、Nsight Compute | 只看平均 tokens/s |
-| GPU 利用率低 | nvidia-smi、队列长度、batch 状态 | vLLM Profiling、服务端调度日志 | 直接判断 GPU 不够 |
-| CPU 占用高 | top、进程日志、tokenizer 时间 | PyTorch Profiler、系统 tracing | 只看 GPU Timeline |
-| 单个 kernel 很慢 | Nsight Systems 定位 kernel | Nsight Compute 深入 kernel | 从 HTTP 日志猜 root cause |
+这会遗漏检索、工具、编排、重试和上下文增长。端到端 Trace 与 LLM 内部指标必须通过 request/task ID 关联，但仍要保持各自的测量边界。
 
-一个常见流程是：
+## 7.11 一份可执行的分析模板
 
-```text
-1. 客户端指标确认现象是否稳定。
-2. 服务端日志确认请求是否进入正确模型和实例。
-3. nvidia-smi 或框架指标确认 GPU、显存和队列是否异常。
-4. vLLM / SGLang / TensorRT-LLM Profiling 确认 batch、Prefill、Decode 状态。
-5. Nsight Systems 看 CPU/GPU Timeline。
-6. Nsight Compute 只用于已经定位到的关键 kernel。
-```
+遇到性能问题时，可以先填下面这张表：
 
-这套流程的重点是控制成本。生产问题通常先需要方向判断，而不是第一时间拿到最细的 kernel counter。只有当证据指向某个 kernel、某类 attention 或某段内存访问时，Nsight Compute 这类深度工具才值得打开。
+| 层次 | 要写清楚的内容 |
+|---|---|
+| Outcome | 哪个指标、哪个分位数、变化多少、SLO 是否失守 |
+| Workload | 模型、硬件、输入/输出长度、并发、流量分布、RAG/Agent 参数 |
+| Boundary | Client、Gateway、Engine、GPU、外部依赖各自的时钟和起止点 |
+| Graph | 节点、耗时、依赖、并行分支、Critical Path |
+| Hypothesis | 候选解释，以及哪些现象与它一致或冲突 |
+| Evidence | 下一项最低成本、能证伪假设的观测或实验 |
+| Guardrail | 成功率、质量、成本、资源上限和公平性 |
+| Decision | 继续验证、实施优化、回滚假设或调整 Workload |
 
-## 7.12 课堂执行建议
-
-这一章适合让学员练习“工具选择”而不是“工具炫技”。教师可以准备三类现象：请求进不来、GPU 利用率低、单个 kernel 时间异常。每类现象让学员选择第一工具、第二工具和暂时不该用的工具。
-
-第一类现象是入口问题。请求返回 429、404 或 5xx 时，优先看 Gateway、路由、模型名和服务健康状态。这个阶段打开 Nsight Compute 没有意义，因为请求可能根本没有进入模型执行路径。
-
-第二类现象是 GPU 利用率低。这里也不能直接说“GPU 不够”或“模型太小”。要先看队列有没有请求，batch 是否形成，CPU 是否阻塞，worker 是否健康。只有确认请求已经进入 engine，并且 GPU 执行路径存在空洞，才进入更深的 timeline 分析。
-
-第三类现象是 kernel 异常。只有当 Nsight Systems 已经显示某个 kernel 或某类 kernel 占据主要时间时，Nsight Compute 才有价值。它适合回答 occupancy、memory throughput、warp stall 这类问题，不适合回答租户限流、请求路由或 queue delay。
-
-本章的课堂产出可以是一张工具选择表。表里每一行都要写清楚：现象是什么，先看哪一层，用哪个工具，预期看到什么证据，如果证据不支持假设，下一步转向哪里。这个表会直接服务第 8 章的 Root Cause Analysis。
+一份好的分析不是数据最多，而是每个结论都能沿着这张表向前追溯。
 
 ## 本章总结
 
-本章回答了“如何采集推理系统不同层次的性能数据？”这个问题。核心结论是：性能分析要先建立可复现输入，再采集合适层级的证据，最后把现象转化为可验证的假设。
+Global Performance Model 把性能问题组织成五层：Outcome、Workload、Stage、Resource、Evidence。普通串行请求可以先做阶段加法；出现并行检索、工具或重复调用后，必须用依赖图和 Critical Path 描述真实等待路径。
 
-本章不要求你已经会优化 Prefill、Decode 或 Serving。它要求你在进入优化之前，能够说清楚当前系统的 Baseline 是什么、证据来自哪里、Root Cause 假设如何被验证。
+慢阶段只生成候选假设，不自动生成 Root Cause。RAG 要同时看检索路径与上下文对 Prefill 的影响；Agent 要从单次调用上升到完整任务，保留并行、重试和上下文增长。接下来，第 8 章会把这里的 Workload 与测量条件固化为可复现的 Benchmark。
 
 ### 本章 Checklist
 
-- [ ] 能说清楚本章问题对应的系统阶段。
-- [ ] 能写出 Baseline、Workload、指标和重复性边界。
-- [ ] 能区分客户端观测、服务端状态和 GPU 证据。
-- [ ] 能提出至少两个可验证假设，而不是直接给优化方案。
-- [ ] 能说明本章内容与下一章或下一篇的衔接。
+- [ ] 能用五层模型描述当前性能问题。
+- [ ] 能区分 TTFT 路径与完整 E2E 路径。
+- [ ] 能为阶段定义明确的起止点和统一时钟。
+- [ ] 遇到并行分支时，会构建依赖图并计算 Critical Path。
+- [ ] 不把最长阶段、GPU 利用率或单次运行直接写成 Root Cause。
+- [ ] RAG 报告包含检索、上下文 token 与 LLM 阶段。
+- [ ] Agent 报告包含任务级 E2E、成功率、重复调用、工具和重试。
+- [ ] 每个候选假设都写明下一项验证证据与质量护栏。
 
 ## 课后练习
 
-1. 选一个你熟悉的 LLM 服务，写出一个最小可复现分析计划。
-2. 为同一个模型设计两组不同 workload，并说明它们分别强调什么瓶颈。
-3. 读一份压测结果，标出哪些结论证据充分，哪些还只是猜测。
-4. 把课堂案例改写成你所在业务的场景，保留本章分析边界。
-5. 写一段 200 字以内的分析报告摘要，要求包含现象、证据、假设和下一步验证动作。
+1. 为一个流式 LLM 请求画出客户端 TTFT 与 E2E 路径，标明两者共同和不同的阶段。
+2. 一个请求的 Queue、Prefill、Decode 分别为 400、300、900 ms。列出至少两个不能仅凭这些数字排除的解释。
+3. 两个并行检索分支分别耗时 120 和 280 ms，汇合与 LLM 分别耗时 40 和 600 ms。计算 Critical Path，并说明把两个检索时间相加为什么不对。
+4. 为你熟悉的 RAG 服务设计一份最小 Trace 字段表，要求能关联检索结果、prompt tokens 和 LLM 阶段。
+5. 为一个带两次工具调用的 Agent 定义任务级性能合同，至少包含延迟、成功、质量与成本。
+6. 修改 Demo 的 Agent 样例，让较短工具分支变成 Critical Path，比较报告前后变化。

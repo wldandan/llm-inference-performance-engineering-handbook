@@ -133,8 +133,30 @@
 4. 逆序时间、token 数不一致和失败请求伪造输出会被拒绝。
 5. 报告保留 nearest-rank、成本分母、workload 和合成数据标记。
 
+## Task CH07：Global Performance Model
+
+### 验收条件
+
+- [x] 用 Outcome、Workload、Stage、Resource、Evidence 五层收束 Part 1。
+- [x] 区分普通串行请求的阶段加法与并行任务的 DAG Critical Path。
+- [x] TTFT 与 E2E 使用不同终点，并沿用第 6 章测量边界。
+- [x] 慢阶段只生成候选假设，所有候选项保持 `needs_evidence`。
+- [x] RAG 同时覆盖检索路径、上下文工作量和质量护栏。
+- [x] Agent 覆盖重复 LLM、并行工具、Merge、重试和任务级指标。
+- [x] Demo 能校验依赖图、计算关键路径、并行重叠和待采证据。
+- [x] Review、Storyboard、9 张 v2 SVG 和 figure-note 与正文一致。
+- [x] 8 项 Demo 测试、视觉契约、SVG 解析和原尺寸检查通过。
+
+### 测试用例
+
+1. 串行 LLM 请求的 Critical Path 等于全部阶段时间之和。
+2. 并行 RAG 分支使用最长必要分支，不把所有节点直接相加。
+3. 循环依赖、未知依赖、重复 ID 和负时长被拒绝。
+4. Queue 与 Decode 只产生候选假设和待采证据，不输出 Root Cause。
+5. Agent 报告保留重复 LLM 与工具节点，并计算任务级路径。
+
 ## 下一批任务
 
-1. 迁移 Chapter 7：Global Performance Model，并增加 RAG / Agent 端到端分解。
-2. 更新 Part 章节范围校验，使 Part 1 覆盖 Chapter 1–7。
-3. 完成 Part 1 全量测试、图片渲染、链接与交付审计。
+1. 更新 Part 章节范围校验，使 Part 1 覆盖 Chapter 1–7。
+2. 完成 Part 1 全量测试、图片渲染、链接与交付审计。
+3. 在目标 GPU 环境补做 Chapter 1 的真实服务启动与流式请求验证。

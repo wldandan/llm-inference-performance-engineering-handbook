@@ -10,7 +10,9 @@
 | Chapter 1 第一个 LLM 服务 | 完成 | 正文已收紧为启动、调用与客户端观察，Demo、评审和 4 张 v2 插图已对齐。 |
 | Chapter 2 Inference Lifecycle | 完成 | 正文、生命周期分析 Demo、评审和 10 张 v2 插图已对齐。 |
 | Chapter 3 LLM Inference Architecture | 完成 | 正文、架构契约 Demo、评审和 10 张 v2 架构图已对齐。 |
-| Chapter 4–7 Part 1 重构 | 进行中 | 下一步新建 Transformer 推理机制，再迁移 GPU、指标和全局性能模型。 |
+| Chapter 4 Transformer 推理机制 | 完成 | 正文、合成机制 Demo、评审和 8 张 v2 插图已对齐。 |
+| Chapter 5 GPU 性能心智模型 | 完成 | 四类约束正文、离线预算 Demo、评审和 8 张 v2 插图已对齐。 |
+| Chapter 6–7 Part 1 收尾 | 进行中 | 下一步迁移指标，并为全局性能模型增加 RAG / Agent 端到端分解。 |
 | Chapter 23 RAG 性能工程 | 待开始 | Core Track 新增重点。 |
 | Chapter 24 Agent 性能工程 | 待开始 | Core Track 新增重点。 |
 | Chapter 30 综合项目 | 待开始 | 需要 Core 与 Advanced 两条交付路线。 |
@@ -28,6 +30,12 @@
 - Chapter 3 单元测试：13 项通过。
 - Chapter 3 结构、图片链接、SVG 解析与 10 张 v2 图原尺寸渲染检查：通过。
 - Chapter 3 插图视觉契约测试：2 项通过。
+- Chapter 4 合成机制 Demo：8 项通过；真实模型扩展 Workshop：25 项通过。
+- Chapter 4 结构、图片链接、SVG 解析与 8 张 v2 图原尺寸渲染检查：通过。
+- Chapter 4 插图视觉契约测试：3 项通过。
+- Chapter 5 GPU 预算 Demo：9 项通过。
+- Chapter 5 结构、图片链接、SVG 解析与 8 张 v2 图原尺寸渲染检查：通过。
+- Chapter 5 插图视觉契约测试：3 项通过。
 - vLLM 启动命令干运行：通过。
 - 目标 GPU 环境端到端验证：待执行。
 - 远程仓库推送：未执行，遵循当前约定。

@@ -75,8 +75,45 @@
 4. CLI 能读取 JSON、打印报告并保存报告文件。
 5. 仓库自带参考架构能通过全部校验。
 
+## Task CH04：Transformer 推理机制
+
+### 验收条件
+
+- [x] 从 Token IDs 到 Selected Token 解释完整 Decoder-only 生成路径。
+- [x] 说明 Block、Causal Attention、GQA、Prefill、Sampling、Decode 和 KV Cache。
+- [x] 明确 Prefill 后首 token 与后续 Decode step 的计数关系。
+- [x] 离线 Demo 能输出 Shapes、Sampling 和 Execution Trace 合成报告。
+- [x] Review、Storyboard、8 张 v2 SVG 和 figure-note 与章节目标一致。
+- [x] 8 项 Demo 测试、25 项扩展 Workshop 测试、视觉契约、SVG 解析和原尺寸检查通过。
+
+### 测试用例
+
+1. GQA 的 Q 与 K/V Head 形状不同且关系合法。
+2. Softmax 概率归一化，Top-k 之外候选归零。
+3. Prefill 后 Cache 长度等于 Prompt，Decode 每步增长 1。
+4. 合成报告不声称运行真实模型或 Benchmark。
+
+## Task CH05：GPU 性能心智模型
+
+### 验收条件
+
+- [x] Core 主线只保留 Compute、Capacity、Bandwidth 和 Launch 四类约束。
+- [x] 权重、KV Cache、工作区、Runtime 与安全余量进入显存预算。
+- [x] 使用算术强度与 Ridge Point 建立 Roofline 直觉，不把估算当成实测。
+- [x] SM、Warp、Tensor Core 与 Occupancy 下沉为进阶选修入口。
+- [x] 离线 Demo 能识别四类候选约束并输出验证顺序。
+- [x] Review、Storyboard、8 张 v2 SVG 和 figure-note 与章节目标一致。
+- [x] 9 项 Demo 测试、视觉契约、SVG 解析和原尺寸检查通过。
+
+### 测试用例
+
+1. 权重精度和 GQA / MHA 配置正确改变容量预算。
+2. 安全余量保留后，超出可用显存会标为 Capacity 约束。
+3. Compute、Bandwidth 和 Launch 三类合成场景能被区分。
+4. 报告明确标记为 `synthetic_gpu_mental_model`，不冒充 Benchmark。
+
 ## 下一批任务
 
-1. 新建 Chapter 4：Transformer 推理机制。
-2. 使用已保留的旧 Chapter 3 素材重写 Chapter 5：GPU 性能心智模型。
-3. 依次对齐 Chapter 6–7 的指标和全局性能模型。
+1. 迁移 Chapter 6：LLM 性能指标，统一客户端、服务端和成本口径。
+2. 迁移 Chapter 7：Global Performance Model，并增加 RAG / Agent 端到端分解。
+3. 完成 Part 1 全量测试、图片渲染、链接与交付审计。

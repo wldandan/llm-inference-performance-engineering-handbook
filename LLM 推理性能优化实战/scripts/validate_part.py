@@ -29,7 +29,7 @@ REQUIRED_TEMPLATE_A_MARKERS = [
 
 # Introductory chapters may use fewer, more purposeful figures. Other chapters
 # keep the project's default ten-figure contract until their storyboard changes.
-EXPECTED_FIGURE_COUNTS = {1: 4, 4: 8}
+EXPECTED_FIGURE_COUNTS = {1: 4, 4: 8, 5: 8}
 
 IMAGE_RE = re.compile(r"!\[[^\]]*]\((figures/[^)]+\.svg)\)")
 CAPTION_RE = re.compile(r"图(\d+)-(\d+)[：:]")

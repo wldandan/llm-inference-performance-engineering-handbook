@@ -14,7 +14,7 @@
 | Chapter 5 GPU 性能心智模型 | 完成 | 四类约束正文、离线预算 Demo、评审和 8 张 v2 插图已对齐。 |
 | Chapter 6 LLM 性能指标 | 完成 | 指标口径正文、离线报告 Demo、评审和 9 张 v2 插图已对齐。 |
 | Chapter 7 Global Performance Model | 完成 | 五层全局模型、Critical Path Demo、RAG / Agent 分解和 9 张 v2 插图已对齐。 |
-| Part 1 全量交付审计 | 进行中 | 下一步修正 Part 范围校验，并复跑 7 章 Demo、图片、链接和结构检查。 |
+| Part 1 全量交付审计 | 完成 | 范围已修正为 Chapter 1–7；113 项测试、58 张图渲染、本地链接和官方引用入口检查通过。 |
 | Chapter 23 RAG 性能工程 | 待开始 | Core Track 新增重点。 |
 | Chapter 24 Agent 性能工程 | 待开始 | Core Track 新增重点。 |
 | Chapter 30 综合项目 | 待开始 | 需要 Core 与 Advanced 两条交付路线。 |
@@ -44,6 +44,9 @@
 - Chapter 7 全局性能依赖图 Demo：8 项通过。
 - Chapter 7 结构、图片链接、SVG 解析与 9 张 v2 图原尺寸渲染检查：通过。
 - Chapter 7 插图视觉契约测试：3 项通过。
+- Part 1 全量测试：113 项通过（62 项章节 Demo、26 项结构/插图/校验器、25 项模型机制 Workshop）。
+- Part 1 图稿：58 张 SVG 与 58 份 figure-note；XML 解析和 1280×720 渲染通过。
+- Part 1 本地 Markdown 链接：0 个缺失；主要官方文档入口复核可用。
 - vLLM 启动命令干运行：通过。
 - 目标 GPU 环境端到端验证：待执行。
 - 远程仓库推送：未执行，遵循当前约定。

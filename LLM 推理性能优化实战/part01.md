@@ -53,7 +53,7 @@
 - 解释 Transformer 推理中 Attention、KV Cache、Prefill 和 Decode 的关系。
 - 用计算量、显存容量、显存带宽和 Kernel 开销解释常见性能现象。
 - 区分 TTFT、TPOT / ITL、TPS、RPS、P95 / P99 和 Cost per Token。
-- 用 `Latency = Queue + Prefill + Decode + Overhead` 建立第一版性能假设。
+- 对普通串行请求使用阶段分解，对 RAG / Agent 使用依赖图与 Critical Path 建立性能假设。
 
 ## 进入下一篇之前的检查清单
 
@@ -63,5 +63,6 @@
 - [ ] 能说明 Prefill 和 Decode 的计算形态为什么不同。
 - [ ] 能解释为什么单看 tokens/s 不足以判断在线服务体验。
 - [ ] 能把一个用户反馈转成“阶段 + 组件 + 指标 + 待验证假设”。
+- [ ] 能画出 RAG 或 Agent 的依赖图，并区分关键路径与节点时间总和。
 
 下一篇进入性能测量与根因分析：先建立可重复的 Baseline，再用 Profiling 证据判断瓶颈到底在哪里。

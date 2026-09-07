@@ -12,6 +12,20 @@ SPEC.loader.exec_module(validate_part)
 
 
 class ValidatePartTests(unittest.TestCase):
+    def test_part_ranges_match_the_approved_v1_outline(self):
+        self.assertEqual(
+            {part: list(chapters) for part, chapters in validate_part.PART_CHAPTERS.items()},
+            {
+                1: list(range(1, 8)),
+                2: list(range(8, 12)),
+                3: list(range(12, 16)),
+                4: list(range(16, 20)),
+                5: list(range(20, 26)),
+                6: list(range(26, 30)),
+                7: [30],
+            },
+        )
+
     def test_chapter_one_accepts_four_purposeful_figures(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

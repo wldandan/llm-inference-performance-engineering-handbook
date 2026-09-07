@@ -11,13 +11,13 @@ from pathlib import Path
 
 
 PART_CHAPTERS = {
-    1: range(1, 6),
-    2: range(6, 10),
-    3: range(10, 14),
-    4: range(14, 18),
-    5: range(18, 22),
-    6: range(22, 26),
-    7: range(26, 31),
+    1: range(1, 8),
+    2: range(8, 12),
+    3: range(12, 16),
+    4: range(16, 20),
+    5: range(20, 26),
+    6: range(26, 30),
+    7: range(30, 31),
 }
 
 REQUIRED_TEMPLATE_A_MARKERS = [

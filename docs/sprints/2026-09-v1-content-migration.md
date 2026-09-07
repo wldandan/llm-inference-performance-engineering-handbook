@@ -157,6 +157,7 @@
 
 ## 下一批任务
 
-1. 更新 Part 章节范围校验，使 Part 1 覆盖 Chapter 1–7。
-2. 完成 Part 1 全量测试、图片渲染、链接与交付审计。
-3. 在目标 GPU 环境补做 Chapter 1 的真实服务启动与流式请求验证。
+1. [x] 更新 Part 章节范围校验，使 Part 1 覆盖 Chapter 1–7。
+2. [x] 完成 Part 1 全量测试、图片渲染、链接与交付审计。
+3. [ ] 在目标 GPU 环境补做 Chapter 1 的真实服务启动与流式请求验证。
+4. [ ] 启动 Part 2，先重构 Chapter 8：Benchmark Design。

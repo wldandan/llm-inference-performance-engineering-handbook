@@ -36,7 +36,7 @@
 6. 优化后结果与 Trade-off；
 7. Core / Advanced 学习检查清单。
 
-课程统一性能分析方法见 `01_Course_Design.md`；具体 Part / Chapter 见 `02_Course_Outline.md`。
+课程统一性能分析方法见 `01_Course_Design.md`；具体 Part / Chapter 以 `02_Course_Outline_v1.0.md` 为准。
 
 ---
 

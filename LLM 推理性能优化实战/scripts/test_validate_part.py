@@ -46,6 +46,40 @@ class ValidatePartTests(unittest.TestCase):
 
             self.assertEqual(validate_part.validate_chapter(root, 1), [])
 
+    def test_chapter_four_accepts_eight_mechanics_figures(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            chapter_dir = root / "chapter04"
+            figures_dir = chapter_dir / "figures"
+            figures_dir.mkdir(parents=True)
+            (chapter_dir / "review.md").write_text("# Review\n", encoding="utf-8")
+            (chapter_dir / "storyboard.md").write_text("# Storyboard\n", encoding="utf-8")
+
+            links = []
+            captions = []
+            for index in range(1, 9):
+                filename = f"fig04-{index:02d}_purposeful.svg"
+                (figures_dir / filename).write_text(
+                    '<svg xmlns="http://www.w3.org/2000/svg"/>', encoding="utf-8"
+                )
+                links.append(f"![图](figures/{filename})")
+                captions.append(f"图4-{index}：图标题。")
+
+            sections = "\n".join(f"## 4.{index} 小节" for index in range(6))
+            chapter_text = "\n".join(
+                [
+                    "# Chapter 4",
+                    "学习目标 核心问题 Demo 本章总结",
+                    sections,
+                    "课堂案例 补充案例 A 补充案例 B",
+                    *links,
+                    *captions,
+                ]
+            )
+            (chapter_dir / "chapter04.md").write_text(chapter_text, encoding="utf-8")
+
+            self.assertEqual(validate_part.validate_chapter(root, 4), [])
+
 
 if __name__ == "__main__":
     unittest.main()

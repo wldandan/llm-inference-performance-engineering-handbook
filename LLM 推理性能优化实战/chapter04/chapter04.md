@@ -1,318 +1,333 @@
-# 第 4 章 Performance Metrics
+# 第 4 章 Transformer 推理机制：模型怎样生成下一个 token
 
 ## 学习目标
 
 学完本章后，你应该能够：
 
-- 定义 TTFT、TPOT / ITL、TPS、RPS、GPU Utilization、GPU Memory、P50 / P95 / P99 和 Cost per Token。
-- 判断每个指标回答的是用户体验、系统吞吐、资源利用还是成本问题。
-- 区分单次请求指标、聚合指标和尾延迟指标。
-- 说明为什么不能用一个平均 tokens/s 判断在线推理系统。
-- 用一个小实验采集并解释客户端观察到的基础指标。
+- 从文本输入开始，按顺序解释 Tokenizer、Embedding、Transformer Blocks、LM Head、Logits 和 Sampling。
+- 说明 Decoder-only Transformer Block 中 Attention、MLP、归一化和残差连接的关系。
+- 用张量形状解释 Multi-Head Attention 与 Grouped Query Attention 的差别。
+- 区分 Prefill 和 Decode 两种执行形态，并说明第一个输出 token 在哪里产生。
+- 解释 KV Cache 保存什么，以及普通 Decode step 为什么只输入一个新 token。
+- 运行合成机制 Demo，核对张量形状、Sampling 候选和 KV Cache 增长事件。
 
-第 1 章讲完请求生命周期后，本章把生命周期转成指标语言。指标不是为了做漂亮报表，而是为了把“慢”“卡”“贵”“不稳定”这些模糊反馈变成可比较、可复现的问题。
+第 2 章从请求视角定义了生命周期，第 3 章从系统视角划分了组件。本章进入 Worker 内部，只回答一个问题：模型拿到 token IDs 后，怎样一步步产生下一个 token？
+
+本章讲机制，不评价速度。GPU 为什么会限制这些计算，放到第 5 章；TTFT、TPOT 和 TPS 怎样定义，放到第 6 章；Prefill 与 Decode 的专项性能分析和优化则在后续 Part 展开。
 
 ## 核心问题
 
-1. 如何评价一个推理系统？
-2. 哪些指标描述用户体验，哪些指标描述系统吞吐？
-3. 为什么 P95 / P99 比平均值更接近生产风险？
-4. Cost per Token 如何把性能问题连接到工程决策？
+1. 文本怎样变成模型能够计算的张量，再变回输出 token？
+2. Self-Attention 在一次前向计算中做了什么？
+3. Prefill 与 Decode 为什么使用同一个模型，却呈现两种执行形态？
+4. Sampling 怎样把 Logits 变成一个具体 token？
+5. KV Cache 在两种执行形态之间保存了什么状态？
 
-![推理性能指标全景](figures/fig04-01_metrics_overview.svg)
+## 4.0 从文本到下一个 token
 
-图4-1：推理性能指标全景。
-
-## 4.1 指标先回答问题
-
-指标必须先绑定问题。否则数字越多，判断越乱。
-
-用户问“为什么半天没反应”，优先看 TTFT。用户问“输出怎么一卡一卡”，优先看 TPOT / ITL。平台问“这组 GPU 能支撑多少流量”，要看 TPS、RPS、并发、GPU Utilization 和显存。财务或业务问“每次回答成本是否可控”，就要看 Cost per Token。
-
-本章把常用指标分成四类：
-
-| 类别 | 典型指标 | 关注点 |
-|---|---|---|
-| 首响体验 | TTFT | 第一个 token 多久出现 |
-| 输出节奏 | TPOT / ITL | 后续 token 是否稳定 |
-| 系统吞吐 | TPS / RPS / Concurrency | 单位时间处理能力 |
-| 资源与成本 | GPU Utilization / GPU Memory / Cost per Token | 资源是否有效转化为服务能力 |
-
-指标之间会互相影响。提高 batch size 可能提升 TPS，但也可能拉长 TTFT 或尾延迟。降低 max tokens 可以减少成本，但可能影响回答质量。性能工程的难点就在这里：不是追求单个数字最大，而是在约束下做取舍。
-
-## 4.2 TTFT：Time To First Token
-
-TTFT 表示从客户端发起请求，到第一个生成 token 被客户端观察到之间的时间。
+一次模型调用可以先压缩成七步：
 
 ```text
-TTFT = first_token_arrival_time - request_start_time
+文本
+  -> Tokenizer / Chat Template
+  -> Token IDs
+  -> Embedding
+  -> N 个 Transformer Blocks
+  -> Final Norm + LM Head
+  -> Logits
+  -> Sampling
+  -> 下一个 token
 ```
 
-它通常反映首响体验。对于聊天、搜索问答、Copilot、Agent 控制台这类交互式场景，TTFT 很重要。用户可以接受完整答案需要几秒，但很难接受长时间毫无反馈。
+Tokenizer 把字符串切分并映射成整数 ID。Embedding 根据每个 ID 查表，得到 hidden state。随后，hidden state 依次穿过多层 Transformer Block。最后的 LM Head 把 hidden state 投影到词表维度，为词表中的每个 token 产生一个 Logit。Sampling 再从这组分数中选出一个 token。
 
-TTFT 可能包含：
+模型并不是直接输出“字”。它每次输出 token ID，客户端最后看到的文本来自 Tokenizer 的反向解码。中文字符、英文单词、空格和标点如何组合，取决于模型使用的词表。
 
-- Gateway 处理。
-- Queue 等待。
-- Tokenization。
-- Prefill。
-- 第一个 token 采样。
-- 首个流式 chunk 返回。
+![从文本到下一个 token](figures/fig04-01_token_generation_pipeline.svg)
 
-所以 TTFT 不是 Prefill 的同义词。它是端到端首包指标。要定位根因，需要结合生命周期和 profiling，而不是只看一个数字。
+图4-1：从文本到下一个 token。
 
-![TTFT 时间范围](figures/fig04-02_ttft_scope.svg)
+## 4.1 Tokenizer、Chat Template 与 Embedding
 
-图4-2：TTFT 时间范围。
+聊天模型收到的输入通常是 messages，而不是一段已经拼好的纯文本。Chat Template 会插入角色标记、分隔符和生成起始标记，然后 Tokenizer 才把序列编码成 token IDs。
 
-## 4.3 TPOT / ITL：输出节奏
+例如，同样一句“你好”，作为 system、user 或 assistant 内容时，最终输入序列可能不同。服务端看到的 prompt_tokens 因此不只取决于用户可见字符，还包括模板添加的控制 token。
 
-TPOT 是 Time Per Output Token，ITL 是 Inter-Token Latency。两者都用来描述生成过程中的输出节奏。
-
-在流式响应中，ITL 可以理解为相邻两个输出 token 或 chunk 到达客户端的间隔：
+得到 token IDs 后，模型使用 Embedding 矩阵查找向量。若 batch 为 B、序列长度为 S、hidden size 为 H，那么：
 
 ```text
-ITL_i = token_i_time - token_{i-1}_time
+token_ids:      [B, S]
+hidden_states:  [B, S, H]
 ```
 
-TPOT 通常描述平均每个输出 token 花费的时间：
+Embedding 不理解词义，它只是一个可训练查找表。上下文关系要等 hidden states 进入 Transformer Blocks 后才逐层形成。
+
+现代模型还需要位置信息。Qwen2.5 使用 RoPE，把位置信息作用到 Attention 的 Query 和 Key；它不像 GPT-2 那样再查一张绝对位置 Embedding 表并与 Token Embedding 相加。不同模型家族的具体实现可以不同，但后面的主流程仍然是 Attention、MLP 和输出投影。
+
+## 4.2 Decoder-only Transformer Block
+
+在线生成常用 Decoder-only Transformer。以 Qwen2.5 一类现代模型为例，一个 Block 可以写成：
 
 ```text
-TPOT = decode_time / output_tokens
+x = x + Attention(RMSNorm(x))
+x = x + MLP(RMSNorm(x))
 ```
 
-实际系统里，客户端可能按 chunk 接收，而不是严格逐 token 接收。所以日志中的 ITL 有时是 chunk 间隔，服务端指标中的 TPOT 更接近模型生成节奏。写报告时要说清楚采集口径。
+两次 RMSNorm 把输入缩放到更稳定的数值范围。Attention 让当前位置读取允许访问的上下文，MLP 则对每个位置的表示做非线性变换。两个子层外面的 Residual Connection 把输入直接加回输出，让信息和梯度能够跨层传播。
 
-ITL 或 TPOT 偏高，用户会觉得模型打字慢；波动大，用户会觉得输出卡顿。常见原因可能在 Decode、KV Cache 读取、batch 调度、采样、网络发送或客户端渲染。
-
-![TPOT 与 ITL](figures/fig04-03_tpot_itl.svg)
-
-图4-3：TPOT 与 ITL。
-
-## 4.4 TPS 与 RPS：吞吐不是一种指标
-
-TPS 是 Tokens Per Second，表示单位时间生成多少 token。RPS 是 Requests Per Second，表示单位时间完成或接收多少请求。
-
-这两个指标回答的问题不同：
-
-- TPS 适合衡量生成 token 的总体产能。
-- RPS 适合衡量请求处理能力。
-
-一个系统可能 TPS 很高，但 RPS 不高，因为每个请求都生成很长。另一个系统可能 RPS 很高，但 TPS 一般，因为每个请求输出很短。
-
-所以吞吐指标必须和 workload 一起报告。至少要说明：
-
-- prompt 长度分布。
-- output 长度分布。
-- concurrency。
-- stream 与非 stream。
-- 模型和硬件。
-- 采样参数。
-
-脱离 workload 的 TPS 数字很容易误导。
-
-![TPS 与 RPS 的区别](figures/fig04-04_tps_rps.svg)
-
-图4-4：TPS 与 RPS 的区别。
-
-## 4.5 P50 / P95 / P99：尾延迟
-
-平均值会隐藏生产风险。在线服务更关心分位数。
-
-P50 表示一半请求低于这个延迟。P95 表示 95% 请求低于这个延迟。P99 表示 99% 请求低于这个延迟。
-
-如果平均 TTFT 是 500ms，但 P99 TTFT 是 8s，用户仍然会大量投诉。因为少数慢请求在真实产品中并不少见：长 prompt、队列拥塞、冷启动、调度不公平、网络抖动、GPU 显存紧张，都可能把尾部拉长。
-
-分位数要和样本量一起看。10 个请求算出来的 P99 没有太大意义。做 benchmark 时要有足够请求数、重复运行和稳定 workload。
-
-![分位数与尾延迟](figures/fig04-05_percentile_latency.svg)
-
-图4-5：分位数与尾延迟。
-
-## 4.6 GPU Utilization 与 GPU Memory
-
-GPU Utilization 表示 GPU 某段时间是否忙。GPU Memory 表示显存占用情况。
-
-这两个指标很重要，但不能单独下结论。
-
-GPU Utilization 高，可能说明 GPU 被充分使用；也可能说明请求排队严重、batch 太大、尾延迟变差。GPU Utilization 低，可能说明 batch 太小、调度有空洞、CPU 或网络成为瓶颈，也可能说明 workload 本来就很轻。
-
-GPU Memory 也类似。显存占用高不一定坏，如果它主要用于有效的 KV Cache 和 batch 容量，可能提升吞吐。但显存接近上限时，系统可能更容易触发抢占、拒绝请求或 OOM。
-
-本章只讲指标意义。第 7 章会讲如何用工具采集，第 21 到第 25 章会讨论容量和扩展。
-
-![GPU 利用率与显存](figures/fig04-06_gpu_metrics.svg)
-
-图4-6：GPU 利用率与显存。
-
-## 4.7 Cost per Token：性能最终要回到成本
-
-推理系统不是跑得越快越好，还要看成本是否能承受。
-
-Cost per Token 可以粗略理解为单位 token 的资源成本：
+Qwen2.5 的 MLP 使用 SwiGLU。简化写法是：
 
 ```text
-Cost per Token = total_serving_cost / generated_tokens
+MLP(x) = down_proj(
+           silu(gate_proj(x)) * up_proj(x)
+         )
 ```
 
-实际计算时，可以按小时 GPU 成本、实例成本、运维成本、请求量和 token 量估算。不同团队会有不同口径，但必须保持口径一致。
+gate_proj 与 up_proj 并行扩展 hidden dimension，逐元素相乘后，再由 down_proj 投影回 hidden size。本章只需要认出这条数据流，不比较不同激活函数或 Kernel 的性能。
 
-Cost per Token 适合回答这些问题：
+一个模型有 N 层 Block，同样的结构会重复 N 次，但每层使用自己的参数。最后再经过 Final RMSNorm 和 LM Head，得到 Logits。
 
-- 当前服务是否有商业可持续性？
-- 优化吞吐是否真的降低单位成本？
-- 更贵的 GPU 是否因为吞吐提升而更划算？
-- 长输出、长上下文、低并发是否推高成本？
+![Decoder-only Transformer Block](figures/fig04-02_decoder_block.svg)
 
-成本指标会把技术选择拉回现实。某个优化让 TPS 提升 20%，但显存占用翻倍、P99 延迟恶化、工程复杂度明显上升，就未必值得上线。
+图4-2：Decoder-only Transformer Block。
 
-![Cost per Token](figures/fig04-07_cost_per_token.svg)
+## 4.3 Causal Self-Attention
 
-图4-7：Cost per Token。
+Self-Attention 的输入是当前层 hidden states X。模型使用三组线性投影生成 Query、Key 和 Value：
 
-## 4.8 指标之间的 Trade-off
+```text
+Q = X Wq
+K = X Wk
+V = X Wv
+```
 
-推理性能指标不是独立旋钮。常见 trade-off 包括：
+单个 Attention Head 的核心计算可以写成：
 
-- 提高 batch size：可能提升 TPS，但增加排队和单请求延迟。
-- 降低 max tokens：降低总成本，但可能影响回答完整性。
-- 增加并发：提升资源利用率，但可能拉高 P95 / P99。
-- 使用更激进量化：降低显存和成本，但可能引入精度或质量风险。
-- 开启缓存复用：降低重复 Prefill，但需要额外缓存管理和命中率评估。
+```text
+Attention(Q, K, V)
+  = softmax(Q Kᵀ / sqrt(d) + causal_mask) V
+```
 
-这就是为什么本课程强调“先分析，后优化”。指标是用来约束优化目标的，不是用来挑一个最好看的数字。
+Query 表示当前位置想查什么，Key 表示各位置可以怎样被匹配，Value 是匹配后要汇入当前位置的信息。Q 与 K 的点积产生相关性分数，缩放和掩码处理后经过 Softmax，再对 V 做加权求和。
 
-![指标 Trade-off](figures/fig04-08_metrics_tradeoff.svg)
+Decoder-only 模型必须使用 Causal Mask。第 i 个位置只能访问自己和之前的位置，不能偷看未来 token。对 Prompt 做 Prefill 时，所有位置虽然可以并行计算，但每个位置仍受同一个因果约束。
 
-图4-8：指标 Trade-off。
+RoPE 通常作用在 Q 和 K 上，使点积带有相对位置信息。它改变的是匹配方式，不改变 Value 中保存的内容。
 
-## 4.9 Demo：采集一次客户端指标
+![Causal Self-Attention](figures/fig04-03_causal_self_attention.svg)
 
-本章可以继续使用 `chapter02/demo/demo.py` 做一个小实验。它不是完整 benchmark，只是帮你理解指标字段。
+图4-3：Causal Self-Attention。
+
+## 4.4 Multi-Head Attention 与 GQA
+
+Multi-Head Attention 把 hidden dimension 切成多个 Head。不同 Query Heads 可以关注不同模式，再把各 Head 输出拼接并投影回 hidden size。
+
+在标准 MHA 中，Query、Key、Value 的 Head 数相同：
+
+```text
+Q heads = 14
+K heads = 14
+V heads = 14
+```
+
+Grouped Query Attention 保留较多 Query Heads，但让一组 Query Heads 共享一组 K/V Heads。以课程 Demo 的配置为例：
+
+```text
+num_attention_heads = 14
+num_kv_heads        = 2
+query_groups        = 14 / 2 = 7
+```
+
+因此，14 个 Query Heads 被分成两组，每 7 个 Query Heads 共享一组 K/V。若 batch 为 B、序列长度为 S、head dimension 为 D，逻辑形状是：
+
+```text
+Q: [B, 14, S, D]
+K: [B,  2, S, D]
+V: [B,  2, S, D]
+```
+
+GQA 不代表只有两个 Attention Heads。Query 仍有 14 个 Head，只是需要保存和读取的 K/V Head 更少。它为什么影响显存容量与带宽，第 5 章再解释；这里先把结构关系讲清楚。
+
+![MHA 与 GQA](figures/fig04-04_gqa_heads.svg)
+
+图4-4：MHA 与 GQA。
+
+## 4.5 Prefill：一次处理整段 Prompt
+
+模型第一次看到请求时，输入不是一个 token，而是完整 Prompt 的 S 个 tokens。所有 Prompt 位置依次通过 Embedding 和 N 层 Transformer Block，这次前向过程称为 Prefill。
+
+Prefill 做两件关键事情：
+
+1. 为每一层、每个 Prompt 位置计算 Key 和 Value，并写入 KV Cache。
+2. 取得最后一个 Prompt 位置的 Logits，用于选择第一个输出 token。
+
+模型实际上会为每个输入位置产生 Logits，但自回归生成只需要最后一个有效位置的 Logits 来继续。经过 Sampling 后得到第一个输出 token。
+
+需要注意顺序：
+
+```text
+Prompt tokens
+  -> Prefill forward
+  -> last-position logits
+  -> Sampling
+  -> first generated token
+```
+
+所以“Prefill 完成”与“第一个 token 已被选出”并不是同一个计算动作。前者产生 Logits，后者由 Sampling 决定具体 token。服务端何时记录 first_token 事件，还会受到框架埋点位置影响，第 2 章已经说明这一点。
+
+![Prefill](figures/fig04-05_prefill_execution.svg)
+
+图4-5：Prefill。
+
+## 4.6 Sampling：从 Logits 选择 token
+
+Logits 是一组未归一化分数，长度等于词表大小。Sampling Pipeline 通常先做温度缩放，再根据 Top-k、Top-p 等规则缩小候选集合，最后选出一个 token。
+
+Temperature 的简化公式是：
+
+```text
+p_i = softmax(logit_i / temperature)
+```
+
+温度较低时，较大的 Logit 会获得更集中的概率；温度较高时，概率分布更平。Temperature 等于零通常表示采用 Greedy Decoding，直接选择最大 Logit，而不是执行除零。
+
+Top-k 只保留分数最高的 k 个候选，Top-p 则保留累计概率达到阈值的一组候选。两者可以单独使用，也可以组合。采样规则会影响输出多样性和可复现性，但本章不讨论答案质量评测。
+
+Sampling 每一步都要执行。Prefill 后采样出第一个输出 token；每个 Decode step 又产生新 Logits，再采样下一个 token。直到遇到 EOS、Stop Sequence、最大输出长度或取消信号，生成才结束。
+
+![Sampling](figures/fig04-06_sampling_pipeline.svg)
+
+图4-6：Sampling。
+
+## 4.7 Decode：一次消费一个新 token
+
+第一个输出 token 被选出后，它会成为下一次模型前向的输入。此时不需要重新计算整个 Prompt，因为 Prefill 已经把历史位置的 K/V 保存在 KV Cache 中。
+
+普通 Decode step 的数据流是：
+
+```text
+new token
+  + past_key_values
+  -> one-token forward
+  -> append this token's K/V
+  -> next-token logits
+  -> Sampling
+  -> next token
+```
+
+假设 Prompt 长度为 8：
+
+| 执行 | 本次输入 token 数 | 执行后 KV Cache 长度 | 产生的输出 |
+|---|---:|---:|---|
+| Prefill | 8 | 8 | 第 1 个输出 token |
+| Decode step 1 | 1 | 9 | 第 2 个输出 token |
+| Decode step 2 | 1 | 10 | 第 3 个输出 token |
+| Decode step 3 | 1 | 11 | 第 4 个输出 token |
+
+KV Cache 保存的是每一层历史 token 的 Key 和 Value，不是完整 hidden states，也不是已经生成的文本。新一步仍然要计算当前 token 的 Q/K/V、Attention、MLP 和 LM Head，只是历史 K/V 可以复用。
+
+这一点也解释了一个容易混淆的计数：如果 Prefill 后已经采样出第一个 token，再执行 3 个 Decode steps，总共会得到 4 个输出 tokens。Decode step 数不总是等于最终输出 token 数。
+
+![Decode 与 KV Cache](figures/fig04-07_decode_kv_loop.svg)
+
+图4-7：Decode 与 KV Cache。
+
+## 4.8 Demo：生成一份合成机制报告
+
+本章 Demo 位于 chapter04/demo，只依赖 Python 标准库。它不会加载真实模型，而是用一组接近 Qwen2.5-0.5B 的教学配置，生成可检查的合成机制报告。
+
+运行：
 
 ```bash
-python3 chapter02/demo/demo.py \
-  --base-url http://127.0.0.1:8000/v1 \
-  --model Qwen/Qwen2.5-0.5B \
-  --prompt "请用中文解释 TTFT、ITL、TPS 的区别。" \
-  --max-tokens 160 \
-  --requests 3 \
-  --concurrency 1
+cd chapter04/demo
+python3 mechanics.py \
+  --prompt-tokens 8 \
+  --decode-steps 4 \
+  --temperature 1.0 \
+  --top-k 3 \
+  --seed 7
 ```
 
-观察：
+输出分为三部分：
 
-- `ttft_ms`：每个请求的首包时间。
-- `itl_avg_ms`、`itl_p50_ms`、`itl_p95_ms`：流式输出间隔。
-- `tokens_per_second`：客户端观察到的输出速度。
-- `total_latency_ms`：完整请求耗时。
+- shapes：Token IDs、Hidden States、Q/K/V、Attention Output、MLP Intermediate 和 Logits 的形状。
+- sampling：Temperature、Top-k、候选概率和被选中的 token ID。
+- execution_trace：一次 Prefill 和四次 Decode 的输入长度、Cache 前后长度及输出 token 序号。
 
-这里的请求数很少，不足以得出生产结论。它只用于理解字段。可信 benchmark 要在第 6 章建立。
+报告顶部会明确写出 synthetic_mechanics。它验证的是概念和数据关系，不是模型正确性，也不是性能 Benchmark。
 
-![Demo 指标输出](figures/fig04-09_demo_metrics_output.svg)
+![Demo 输出模型机制报告](figures/fig04-08_demo_mechanics_report.svg)
 
-图4-9：Demo 指标输出。
+图4-8：Demo 输出模型机制报告。
 
-## 4.10 课堂案例：同一个系统，为什么两份报告结论相反
+需要观察真实模型时，可以继续运行 workshops/00-model-internals。该 Workshop 会读取真实模型 config、核对运行时张量形状，并观察 past_key_values 随 Decode 增长。它需要 transformers 与 torch，适合作为本章的扩展实验。
 
-假设两个团队同时评估一个 LLM 服务。
+## 4.9 课堂案例：同一个模型为什么会给出不同回答
 
-平台团队的报告说：
+一个客服系统对同一 Prompt 连续调用三次，返回了三个措辞不同但含义接近的答案。服务端没有换模型，Prompt 也没有变化。
 
-| 指标 | 结果 |
-|---|---|
-| TPS | 提升 35% |
-| GPU Utilization | 从 52% 提升到 78% |
-| GPU Memory | 从 42GB 提升到 67GB |
+从本章机制看，差异可能出现在 Sampling：Logits 相同不代表每次都选择同一个 token。只要使用非零 Temperature，并从多个候选中随机抽样，某一步选出不同 token，后续上下文就会变化，整段答案也会逐渐分叉。
 
-产品团队的报告却说：
+课堂讨论：
 
-| 指标 | 结果 |
-|---|---|
-| TTFT P95 | 从 1.2s 变成 2.8s |
-| ITL P95 | 从 45ms 变成 80ms |
-| 用户取消率 | 上升 |
+1. 如果把 Temperature 调低，概率分布会怎样变化？
+2. 如果使用 Greedy Decoding，同样输入是否一定得到相同输出？还需要检查哪些运行条件？
+3. 为什么不能把输出不同解释成 Prefill 或 Decode “算错了”？
 
-这两份报告不一定矛盾。平台团队可能把 batch size 或并发提高了，GPU 吃得更满，整体 TPS 确实上去了。但产品团队看到的是交互体验：更多请求在队列里等，流式输出间隔变大，尾部用户更难受。
+### 补充案例 A：长文档总结
 
-课堂上可以让学员回答三个问题：
+长文档总结的 Prompt 可能有数千 tokens，而输出只有几十 tokens。机制上仍是一次 Prefill 加若干 Decode steps：Prefill 一次处理整段输入，Decode 每步消费一个新 token。此时只要求画出两种输入形态，不在本章判断哪个阶段更慢。
 
-1. 如果只看平台团队报告，会做出什么错误判断？
-2. 如果只看产品团队报告，又会漏掉什么信息？
-3. 如果你要写一份完整性能报告，至少还要补哪些 workload 信息？
+### 补充案例 B：Agent 把工具结果放回 Prompt
 
-一份合格的推理性能报告，应该同时给出 workload、用户体验指标、吞吐指标、资源指标和成本指标。尤其要报告分位数，而不是只报告平均值。
+Agent 完成工具调用后，常把工具结果追加到上下文，再发起下一次 LLM 调用。对新调用来说，这是一段新的 Prompt，需要再次经过 Tokenizer、Prefill、Sampling 和 Decode。前一次调用的业务上下文不会自动变成下一次调用可用的 KV Cache；是否复用由具体 Serving 系统和缓存策略决定，后续章节再讲。
 
-这个案例的重点是：指标不是为了证明某个优化“赢了”，而是为了让不同角色讨论同一个事实。
+## 4.10 常见误区
 
-### 补充案例 A：离线批处理和在线聊天的指标优先级不同
+误区一：Transformer 一次前向就生成整段回答。
 
-同一个模型可以服务两类任务：
+普通自回归生成每次选择一个 token。整段回答来自一次 Prefill 和多次 Decode 循环。
 
-| 场景 | 更关注的指标 | 原因 |
-|---|---|---|
-| 在线聊天 | TTFT、ITL、P95 / P99 | 用户在等待输出 |
-| 离线批处理 | TPS、Cost per Token、失败率 | 用户不盯着每个 token |
+误区二：Prefill 只负责创建 KV Cache，不产生输出。
 
-如果团队用离线批处理的指标去评价在线聊天，就可能得出错误结论：TPS 很高，但用户觉得慢。反过来，如果用在线聊天的 TTFT 标准去评价夜间离线任务，也可能过度优化首响，忽略单位成本。
+Prefill 还会产生最后一个 Prompt 位置的 Logits，Sampling 使用它选出第一个输出 token。
 
-课堂讨论：一个“合同批量审阅”任务应该更像在线聊天还是离线批处理？如果用户要求页面实时显示进度，指标优先级会不会变化？
+误区三：KV Cache 保存所有中间结果。
 
-### 补充案例 B：同样的 P95，在不同样本量下意义不同
+它保存各层历史 token 的 Key 和 Value。当前 token 的其他计算仍需执行。
 
-假设两份测试都报告 `TTFT P95 = 2s`。
+误区四：GQA 把 Attention Head 数从 14 降到了 2。
 
-| 测试 | 请求数 | 是否可信 |
-|---|---:|---|
-| A | 20 | 很弱，只能粗看 |
-| B | 20,000 | 更适合讨论尾延迟 |
+Query Head 仍是 14，只有 K/V Head 数变为 2。每组 Query Heads 共享一组 K/V。
 
-P95 是分位数，不是魔法数字。样本太少时，分位数非常不稳定。课堂上可以让学员思考：如果只跑 20 个请求，应该如何表述结论？比较稳妥的说法是“这组小样本中观察到首包时间最高接近某个范围”，而不是宣称系统 P95 已经稳定。
+误区五：token 和文本字符一一对应。
 
-这个案例帮助学员建立报告口径意识：指标名称、采集口径、样本量和 workload 必须一起出现。
-
-## 4.11 常见误区
-
-误区一：只看平均 tokens/s。
-
-平均 tokens/s 不能代表首响、尾延迟、成本和稳定性。
-
-误区二：把客户端指标和服务端指标混在一起。
-
-客户端看到的是端到端结果，服务端能拆得更细。两者都重要，但口径不同。
-
-误区三：不报告 workload。
-
-没有 prompt 长度、output 长度、并发和采样参数，指标无法比较。
-
-误区四：把一次实验结果当结论。
-
-性能实验需要重复运行、控制变量和报告分布。
-
-![指标口径检查](figures/fig04-10_metric_checklist.svg)
-
-图4-10：指标口径检查。
+Tokenizer 决定 token 边界。一个 token 可能对应一个字符、字符片段、单词片段或特殊控制符。
 
 ## 本章总结
 
-本章建立了评价 LLM 推理系统的基础指标。
+一次 Decoder-only LLM 推理从 Tokenizer 开始。Token IDs 经过 Embedding 和多层 Transformer Block，Final Norm 与 LM Head 产生 Logits，Sampling 再选出下一个 token。
 
-TTFT 描述首包体验，TPOT / ITL 描述输出节奏，TPS 和 RPS 描述吞吐，P50 / P95 / P99 描述延迟分布，GPU Utilization 和 GPU Memory 描述资源状态，Cost per Token 把性能拉回成本。每个指标都有使用边界，不能脱离 workload 和采集口径解释。
+Prefill 与 Decode 使用同一组模型参数。Prefill 一次处理完整 Prompt，并把历史 K/V 写入 Cache；Prefill 后的 Sampling 产生第一个输出 token。后续 Decode 每步输入一个新 token，读取历史 KV Cache、追加新 K/V，再采样下一个 token。
 
-下一章会把这些指标放进全局性能模型，讨论 `Latency = Queue + Prefill + Decode`，以及 Compute、Memory、Scheduling 等瓶颈如何影响多个指标。
+本章完成的是“理解系统”中的模型机制。下一章会把这些计算放到 GPU 上，解释算力、显存容量、显存带宽和 Kernel Launch 分别会约束什么。
 
 ### 本章 Checklist
 
-- [ ] 能定义 TTFT、TPOT / ITL、TPS、RPS。
-- [ ] 能解释 P50 / P95 / P99 的含义。
-- [ ] 能说明 GPU Utilization 高不一定代表用户体验好。
-- [ ] 能说明 Cost per Token 的基本口径。
-- [ ] 能指出一个指标报告缺少 workload 时为什么不可比。
+- [ ] 能画出 Text 到 next token 的完整数据流。
+- [ ] 能说明 Attention、MLP、RMSNorm 和 Residual 的关系。
+- [ ] 能写出 Q/K/V 与 Causal Attention 的核心公式。
+- [ ] 能根据 Query Heads 和 KV Heads 判断 MHA 或 GQA。
+- [ ] 能解释 Prefill 后怎样产生第一个输出 token。
+- [ ] 能解释每个普通 Decode step 怎样使用并更新 KV Cache。
+- [ ] 能区分 Logits、Probability 和被选中的 token。
+- [ ] 能运行 Demo 并解释报告中的 shapes、sampling 和 execution_trace。
 
 ## 课后练习
 
-1. 用 100 字以内解释 TTFT 和 TPOT / ITL 的区别。
-2. 设计一个最小指标表，包含用户体验、吞吐、资源和成本四类指标。
-3. 运行本章 Demo，记录 3 次请求的 `ttft_ms` 和 `total_latency_ms`。
-4. 写出一个可能提升 TPS 但伤害 P99 的调参例子。
-5. 课堂讨论：如果老板只要求“把 tokens/s 提高 30%”，你会补问哪些指标和 workload 条件？
+1. 将 batch=2、sequence length=16、hidden size=896 写成 Token IDs 与 Hidden States 的形状。
+2. 在 14 个 Query Heads、2 个 KV Heads 的配置下，计算每组有多少个 Query Heads。
+3. 画出长度为 5 的 Prompt 经过 Prefill 和 3 个 Decode steps 后，KV Cache 长度的变化。
+4. 使用本章 Demo 比较 Temperature 0.5 与 1.5 的候选概率，不把结果解释成性能差异。
+5. 把 Top-k 从 2 改成 4，观察哪些 token 获得非零概率。
+6. 运行 workshops/00-model-internals，核对真实模型的 Query 与 K/V Head 形状。

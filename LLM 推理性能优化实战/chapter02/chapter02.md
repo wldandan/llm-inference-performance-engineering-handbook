@@ -269,7 +269,7 @@ demo.py
 配套代码位于：
 
 ```text
-chapter02/demo/
+chapter01/demo/
 ```
 
 ### 2.10.1 启动 vLLM 服务
@@ -277,19 +277,19 @@ chapter02/demo/
 如果模型可以通过 Hugging Face id 解析：
 
 ```bash
-python3 chapter02/demo/start_vllm.py \
-  --model Qwen/Qwen2.5-0.5B \
-  --served-model-name Qwen/Qwen2.5-0.5B \
+python3 chapter01/demo/start_vllm.py \
+  --model Qwen/Qwen2.5-0.5B-Instruct \
+  --served-model-name Qwen/Qwen2.5-0.5B-Instruct \
   --host 0.0.0.0 \
   --port 8000
 ```
 
-如果模型已经在本地目录，例如 `/home/admin/models/Qwen2.5-0.5B`：
+如果模型已经在本地目录，例如 `/home/admin/models/Qwen2.5-0.5B-Instruct`：
 
 ```bash
-python3 chapter02/demo/start_vllm.py \
-  --model /home/admin/models/Qwen2.5-0.5B \
-  --served-model-name Qwen/Qwen2.5-0.5B \
+python3 chapter01/demo/start_vllm.py \
+  --model /home/admin/models/Qwen2.5-0.5B-Instruct \
+  --served-model-name Qwen/Qwen2.5-0.5B-Instruct \
   --host 0.0.0.0 \
   --port 8000
 ```
@@ -299,9 +299,9 @@ python3 chapter02/demo/start_vllm.py \
 从课程根目录运行：
 
 ```bash
-python3 chapter02/demo/demo.py \
+python3 chapter01/demo/demo.py \
   --base-url http://127.0.0.1:8000/v1 \
-  --model Qwen/Qwen2.5-0.5B \
+  --model Qwen/Qwen2.5-0.5B-Instruct \
   --prompt "请用一句话说明这个服务由哪些组件组成。" \
   --max-tokens 128 \
   --requests 1 \

@@ -20,7 +20,7 @@ from typing import Any
 
 
 DEFAULT_PROMPT = "请用中文简要解释 LLM 在线推理中的 Prefill、Decode 和 KV Cache。"
-DEFAULT_MODEL = "Qwen/Qwen2.5-0.5B"
+DEFAULT_MODEL = "Qwen/Qwen2.5-0.5B-Instruct"
 
 
 def build_payload(model: str, prompt: str, max_tokens: int, temperature: float) -> dict[str, Any]:

@@ -1,23 +1,55 @@
-# 第 1 章 Inference Lifecycle
+# 第 1 章 第一个 LLM 服务：从请求到响应
 
 ## 学习目标
 
 学完本章后，你应该能够：
 
+- 启动一个最小的 OpenAI-compatible LLM 服务并发送流式请求。
+- 把客户端看到的首包、后续 token 和完成信号映射到服务生命周期。
 - 按顺序描述一次在线 LLM 请求从进入系统到返回结束的生命周期。
 - 区分 Queue、Prefill、Decode、Response 在请求路径中的位置。
 - 解释 KV Cache 在请求生命周期中何时创建、读取、增长和释放。
 - 说明 Streaming Response 为什么会改变用户对延迟的感知。
 - 用一次最小 Demo 观察请求、首个流式 chunk、后续 chunk 和 usage 的对应关系。
 
-本章是全书第一章，目标不是马上给出精确定义，而是先带你跟着一个真实请求走一遍，对整个推理系统建立第一手的直觉。本章不系统定义指标，也不做 benchmark 结论。TTFT、TPOT / ITL、TPS 等指标会在第 4 章展开；Gateway、Queue、Scheduler 这些词本章先按字面意思理解即可，第 2 章会把它们拆解成更精确的架构分层（例如"Scheduler"实际上还能细分成 Router、Admission / Queue 和 Engine Scheduler）。
+本章是全书第一章。我们先把服务跑起来，再跟着一个真实请求走一遍，建立对推理系统的第一手直觉。本章不系统定义指标，也不做 benchmark 结论。TTFT、TPOT / ITL、TPS 等指标会在第 6 章展开；Gateway、Queue、Scheduler 这些词本章先按字面意思理解即可，第 3 章会把它们拆解成更精确的架构分层。
 
 ## 核心问题
 
-1. 一个请求进入推理系统后会经过哪些阶段？
-2. Queue、Prefill、Decode、Response 分别承担什么职责？
-3. KV Cache 如何把 Prefill 和 Decode 连接起来？
-4. Streaming Response 为什么能改善用户体感？
+1. 如何启动并调用一个 OpenAI-compatible LLM 服务？
+2. 客户端收到的流式 chunk 对应服务端的哪些执行阶段？
+3. Queue、Prefill、Decode、Response 分别处在请求链路的什么位置？
+4. KV Cache 如何把 Prefill 和 Decode 连接起来？
+
+## 1.0 先启动一个最小服务
+
+先不追求高吞吐，也不调整任何优化参数。使用课程提供的 vLLM 启动脚本和客户端，完成一次最小的流式请求。
+
+在课程仓库的 `LLM 推理性能优化实战/` 目录中运行：
+
+```bash
+python3 chapter01/demo/start_vllm.py \
+  --model Qwen/Qwen2.5-0.5B-Instruct \
+  --served-model-name Qwen/Qwen2.5-0.5B-Instruct \
+  --host 0.0.0.0 \
+  --port 8000
+```
+
+另开终端发送请求：
+
+```bash
+python3 chapter01/demo/demo.py \
+  --base-url http://127.0.0.1:8000/v1 \
+  --model Qwen/Qwen2.5-0.5B-Instruct \
+  --prompt "请用中文解释一次 LLM 请求如何从进入服务到流式返回结束。" \
+  --max-tokens 160 \
+  --requests 1 \
+  --concurrency 1
+```
+
+脚本位于 `chapter01/demo/`，既是本章的入门实验，也是后续 Benchmark 和优化实验的统一服务入口。
+
+你只需要先确认三件事：服务能够启动、请求能够返回、响应是流式到达的。下一节开始，再解释这三个现象背后的生命周期。
 
 ![一次请求的生命周期总览](figures/fig01-01_request_lifecycle_overview.svg)
 
@@ -25,9 +57,9 @@
 
 ## 1.1 从一个具体请求说起
 
-一个基于 vLLM 部署的 Llama-3.1-8B-Instruct 聊天服务，用户输入了一句话："帮我写一段快速排序的 Python 代码，并解释一下时间复杂度。"这句话会经过什么，多久之后用户才能看到第一个字，之后的字又是怎么一个个冒出来的？本章要跟着这个具体例子，把答案走一遍。
+一个基于 vLLM 部署的 Qwen2.5-0.5B-Instruct 聊天服务，用户输入了一句话："帮我写一段快速排序的 Python 代码，并解释一下时间复杂度。"这句话会经过什么，多久之后用户才能看到第一个字，之后的字又是怎么一个个冒出来的？本章要跟着这个具体例子，把答案走一遍。
 
-先不从系统组件出发，而是跟着这一次请求走。粗略地说，系统由 Client、Gateway、Scheduler、Worker、Runtime 和 GPU 这几块组成——这几个名字本章只按字面意思使用，不追求精确边界，第 2 章会正式拆解它们各自的职责。
+先不从系统组件出发，而是跟着这一次请求走。粗略地说，系统由 Client、Gateway、Scheduler、Worker、Runtime 和 GPU 这几块组成——这几个名字本章只按字面意思使用，不追求精确边界，第 3 章会正式拆解它们各自的职责。
 
 一个典型的在线请求可以先简化成这条链路：
 
@@ -78,7 +110,7 @@ Queue 的存在不是坏事。没有队列，服务很难在高并发下保持�
 - 当前可用的 KV Cache block。
 - 是否因为显存预算不足而暂缓执行。
 
-第 13 到第 21 章会专门讲 Serving 工作机制、性能分析和调度优化。本章只要求你知道：Queue 是请求生命周期的一部分，用户感受到的慢可能发生在模型计算前。
+第 20 到第 22 章会专门讲 Serving 工作机制、性能分析和调度优化。本章只要求你知道：Queue 是请求生命周期的一部分，用户感受到的慢可能发生在模型计算前。
 
 ![Queue 与 Scheduler](figures/fig01-03_queue_scheduler.svg)
 
@@ -99,7 +131,7 @@ Prompt tokens
   -> logits for first generated token
 ```
 
-Prefill 出现在第一个输出 token 之前，所以它强影响首包等待。但首包等待不等于 Prefill 本身，还可能包含排队、tokenization、采样和网络返回。第 4 章会正式定义 TTFT，第 9 到第 13 章会深入 Prefill 的机制、分析和优化。
+Prefill 出现在第一个输出 token 之前，所以它强影响首包等待。但首包等待不等于 Prefill 本身，还可能包含排队、tokenization、采样和网络返回。第 6 章会正式定义 TTFT，第 12 到第 15 章会深入 Prefill 的机制、分析和优化。
 
 ![Prefill 在生命周期中的位置](figures/fig01-04_prefill_position.svg)
 
@@ -143,7 +175,7 @@ last token + KV Cache
 
 Decode 会持续到停止条件出现。停止条件可能是 EOS、stop words、达到 `max_tokens`，或者客户端取消请求。
 
-输出越长，Decode 循环次数越多。多个请求并发时，Scheduler 会不断把处于 Decode 阶段的请求组合成执行批次。这个循环节奏直接影响流式输出是否顺滑，但具体指标放到第 4 章。
+输出越长，Decode 循环次数越多。多个请求并发时，Scheduler 会不断把处于 Decode 阶段的请求组合成执行批次。这个循环节奏直接影响流式输出是否顺滑，但具体指标放到第 6 章。
 
 ![Decode Loop](figures/fig01-06_decode_loop.svg)
 
@@ -189,14 +221,14 @@ allocate blocks
 
 ## 1.9 Demo：观察一次流式请求
 
-本章 Demo 沿用 `chapter02/demo/` 中的最小 vLLM 服务脚本。这里不新增复杂 benchmark，只观察一次请求的生命周期。
+本章 Demo 使用 `chapter01/demo/` 中的最小 vLLM 服务脚本。这里不做并发压测，只观察一次请求的生命周期。
 
 启动服务后，从课程根目录运行：
 
 ```bash
-python3 chapter02/demo/demo.py \
+python3 chapter01/demo/demo.py \
   --base-url http://127.0.0.1:8000/v1 \
-  --model Qwen/Qwen2.5-0.5B \
+  --model Qwen/Qwen2.5-0.5B-Instruct \
   --prompt "请用中文解释一个 LLM 请求从进入服务到流式返回结束的过程。" \
   --max-tokens 160 \
   --requests 1 \
@@ -247,7 +279,7 @@ Decode Loop
 
 课堂上可以让学员用两种颜色标注同一张生命周期图：一种颜色标“首包慢”的可能位置，另一种颜色标“输出慢”的可能位置。这个练习能帮助他们养成一个习惯：先定位阶段，再选择指标。
 
-注意，这里还没有做根因判断。第 4 章会把这两类反馈转成 TTFT 和 TPOT / ITL，第 5、6、7 章才会进入 Benchmark、Profiling 和 Root Cause Analysis。
+注意，这里还没有做根因判断。第 6 章会把这两类反馈转成 TTFT 和 TPOT / ITL，第 8 到第 11 章才会进入 Benchmark、Profiling 和 Root Cause Analysis。
 
 ### 补充案例 A：长文档总结请求如何改变生命周期
 
@@ -282,7 +314,7 @@ User Task
 
 误区一：把 TTFT 直接等同于 Prefill。
 
-Prefill 通常是首包等待的重要组成，但 TTFT 还包含排队、tokenization、采样和返回链路。第 4 章会正式定义。
+Prefill 通常是首包等待的重要组成，但 TTFT 还包含排队、tokenization、采样和返回链路。第 6 章会正式定义。
 
 误区二：认为非流式和流式只是接口格式差异。
 
@@ -306,10 +338,11 @@ KV Cache 不只是占多少显存，还参与请求调度、并发容量、Decod
 
 请求先经过 Gateway，再进入 Queue，随后由 Scheduler 选择进入执行。Prefill 处理完整输入并写入 KV Cache，第一个 token 出现后，流式响应可以开始返回。Decode Loop 持续生成后续 token，并不断读取和追加 KV Cache。请求结束时，服务返回 usage、finish reason，并释放或复用资源。
 
-下一章会往回退一步，把 Gateway、Queue、Scheduler 这些本章按字面意思使用的词，拆解成更精确的系统架构分层；再往后，第 4 章才会把这些生命周期阶段转化成 TTFT、TPOT / ITL、TPS、RPS、尾延迟、GPU Utilization 和 Cost per Token 这样可比较、可复现的指标语言。
+下一章会把这里观察到的现象整理成正式的 Inference Lifecycle；第 3 章再拆解 Gateway、Scheduler、Worker 和 Runtime 的职责边界；第 6 章会把这些阶段转化成 TTFT、TPOT / ITL、TPS、RPS、尾延迟、GPU Utilization 和 Cost per Token 等可比较、可复现的指标。
 
 ### 本章 Checklist
 
+- [ ] 能独立启动服务并完成一次流式请求。
 - [ ] 能画出 Request -> Gateway -> Queue -> Prefill -> Decode -> Response 的链路。
 - [ ] 能说明 Queue 发生在模型计算前。
 - [ ] 能说明 Prefill 与第一个 token 的关系。

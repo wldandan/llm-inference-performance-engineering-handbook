@@ -11,13 +11,13 @@ import os
 import subprocess
 
 
-DEFAULT_MODEL = "Qwen/Qwen2.5-0.5B"
+DEFAULT_MODEL = "Qwen/Qwen2.5-0.5B-Instruct"
 DEFAULT_HOST = "0.0.0.0"
 DEFAULT_PORT = 8000
 
 
 def build_command(
-    python_bin: str,
+    vllm_bin: str,
     model: str,
     served_model_name: str,
     host: str,
@@ -25,10 +25,8 @@ def build_command(
     gpu_memory_utilization: float | None,
 ) -> list[str]:
     cmd = [
-        python_bin,
-        "-m",
-        "vllm.entrypoints.openai.api_server",
-        "--model",
+        vllm_bin,
+        "serve",
         model,
         "--served-model-name",
         served_model_name,
@@ -47,7 +45,7 @@ def build_parser() -> argparse.ArgumentParser:
         description="Start vLLM OpenAI-compatible server for chapter 01",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("--python-bin", default=os.environ.get("PYTHON", "python3"))
+    parser.add_argument("--vllm-bin", default=os.environ.get("VLLM_BIN", "vllm"))
     parser.add_argument("--model", default=DEFAULT_MODEL, help="Hugging Face model id or local model path")
     parser.add_argument("--served-model-name", default=DEFAULT_MODEL)
     parser.add_argument("--host", default=DEFAULT_HOST)
@@ -60,7 +58,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     args = build_parser().parse_args()
     cmd = build_command(
-        python_bin=args.python_bin,
+        vllm_bin=args.vllm_bin,
         model=args.model,
         served_model_name=args.served_model_name,
         host=args.host,

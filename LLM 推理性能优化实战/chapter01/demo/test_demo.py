@@ -1,18 +1,21 @@
 import unittest
 
-from demo import MetricsCollector, build_report, build_payload, percentile
+from demo import DEFAULT_MODEL, MetricsCollector, build_report, build_payload, percentile
 
 
 class Chapter01DemoTest(unittest.TestCase):
+    def test_default_model_supports_chat_requests(self):
+        self.assertEqual(DEFAULT_MODEL, "Qwen/Qwen2.5-0.5B-Instruct")
+
     def test_build_payload_uses_chat_completion_shape(self):
         payload = build_payload(
-            model="Qwen/Qwen2.5-0.5B",
+            model="Qwen/Qwen2.5-0.5B-Instruct",
             prompt="hello",
             max_tokens=32,
             temperature=0.0,
         )
 
-        self.assertEqual(payload["model"], "Qwen/Qwen2.5-0.5B")
+        self.assertEqual(payload["model"], "Qwen/Qwen2.5-0.5B-Instruct")
         self.assertEqual(payload["messages"][0]["role"], "user")
         self.assertEqual(payload["messages"][0]["content"], "hello")
         self.assertEqual(payload["max_tokens"], 32)
@@ -43,7 +46,7 @@ class Chapter01DemoTest(unittest.TestCase):
         report = build_report(
             started_at="2026-07-30T00:00:00+0800",
             base_url="http://127.0.0.1:8000/v1",
-            model="Qwen/Qwen2.5-0.5B",
+            model="Qwen/Qwen2.5-0.5B-Instruct",
             prompt="hello",
             prompt_repeat=1,
             max_tokens=8,

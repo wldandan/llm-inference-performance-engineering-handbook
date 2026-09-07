@@ -1,249 +1,341 @@
-# 第 6 章 Benchmark Design
+# 第 6 章 LLM 性能指标：先统一口径，再比较数字
 
 ## 学习目标
 
 学完本章后，你应该能够：
 
-- 解释本章为什么要回答：如何建立可信、可重复的性能 Baseline？
-- 把性能分析问题拆成 Baseline、Workload、指标和证据。
-- 区分现象、假设、Profiling 证据和 Root Cause。
-- 设计一个不越过本章边界的 Demo 或课堂讨论。
-- 使用本章 Checklist 为后续优化章节准备输入。
+- 按用户体验、系统产能、可靠性、资源和成本选择指标，而不是只报一个 tokens/s。
+- 区分客户端、服务端和 GPU 三个测量边界。
+- 定义 TTFT、E2E、TPOT、ITL、Output TPS、RPS 和 Goodput。
+- 解释 P50、P95、P99、样本量与分位数算法之间的关系。
+- 区分结果指标与资源指标，避免用 GPU Utilization 代替用户体验。
+- 为成本指标写清输入 token、输出 token、成功请求或 SLO 合格请求等分母。
+- 运行离线 Demo，从请求记录生成一份带测量合同的指标报告。
 
-本章属于 Part 2 Performance Analysis。它只建立分析方法，不提前给出 Prefill、Decode、Serving 或 Scalability 的优化结论。
+第 2 章已经定义请求生命周期，第 5 章解释 GPU 的资源约束。本章只解决测量语言：当团队说“慢”“吞吐高”“GPU 很忙”或“成本下降”时，这些话究竟对应哪个观测点、哪个统计窗口和哪个分母？
+
+本章不教你设计正式 Benchmark。Warmup、重复次数、流量模型和实验控制属于第 8 章。这里先保证同一个指标名称指向同一种计算。
 
 ## 核心问题
 
-本章围绕四个问题展开：
+1. 用户、服务端和 GPU 看到的是不是同一段时间？
+2. TTFT、TPOT、ITL 和 E2E 分别覆盖哪段请求时间？
+3. TPS、RPS 与 Goodput 为什么不能互相替代？
+4. 为什么平均值正常，生产环境仍可能出现大量投诉？
+5. “Cost per Token”缺少什么信息时无法比较？
 
-1. 如何建立可信、可重复的性能 Baseline？
-2. 这个问题在完整推理系统里落在哪些组件和阶段？
-3. 哪些证据足以支持结论，哪些只是表面现象？
-4. 如何把方法沉淀成后续章节可以复用的检查动作？
+## 6.0 指标先回答问题
 
-![benchmark_overview](figures/fig06-01_benchmark_overview.svg)
+指标不是越多越好。先写问题，再选择数字：
 
-图6-1：Benchmark 不是跑分，而是实验设计。
+| 问题 | 指标族 | 常见指标 |
+|---|---|---|
+| 用户多久看到反馈？ | 交互延迟 | TTFT、ITL / TPOT、E2E |
+| 系统单位时间完成多少工作？ | 产能 | Output TPS、Input TPS、RPS |
+| 达标的有效工作有多少？ | 可靠产能 | Goodput、成功率、取消率 |
+| 慢请求集中在尾部吗？ | 分布 | P50、P95、P99、最大值、样本量 |
+| 资源发生了什么？ | 资源状态 | GPU Utilization、显存、HBM 带宽、Queue Depth |
+| 每单位有效结果花多少钱？ | 成本 | USD / 1M input tokens、USD / 1M output tokens、USD / good request |
 
-## 6.1 Benchmark 不是跑分，而是实验设计
+同一次改动可能让 Output TPS 上升，却让 TTFT P99 变差；也可能减少显存占用，却增加 GPU 小时。性能报告必须同时覆盖目标和护栏，不能只挑最好看的数字。
 
-Benchmark 不是跑分，而是实验设计 是本章的起点。性能分析不是为了得到一个漂亮数字，而是为了让团队知道当前系统在什么工作负载下、用什么指标、以什么重复方式表现如何。没有这个前提，后续任何优化收益都可能只是偶然波动。
+![指标先回答问题](figures/fig06-01_metric_question_map.svg)
 
-![baseline_contract](figures/fig06-02_baseline_contract.svg)
+图6-1：指标先回答问题。
 
-图6-2：Benchmark 不是跑分，而是实验设计。
+## 6.1 客户端、服务端与 GPU：先确定测量边界
 
-## 6.2 Baseline：所有优化的参照物
+同一个请求至少有三种时钟：
 
-在本书语境里，Baseline：所有优化的参照物 要写清楚输入条件、版本、模型、硬件、并发、请求分布和观测指标。它不是一次命令输出，而是一份可以被别人复现的实验约定。
+- **客户端时钟**：从调用方发出请求，到收到首个非空内容、后续流式片段和最终结束。
+- **服务端时钟**：从 Gateway 或 Engine 接收请求，到排队、调度、首 token、最后 token、序列回收。
+- **GPU 时钟**：Kernel 的提交、开始、结束，HBM 读写和计算单元活动。
 
-![warmup_curve](figures/fig06-03_warmup_curve.svg)
+客户端 TTFT 包含网络、入口处理、排队、Prefill、Sampling 和首段返回。服务端的 `first_token` 指标可能从 `request_received` 开始，也可能只覆盖 Engine 内部。GPU Kernel Duration 只覆盖设备执行。三个数字可以同时正确，却不应共用一个标签。
 
-图6-3：Baseline：所有优化的参照物。
+第 1 章 Demo 统计的是客户端首个非空内容 chunk，不保证一个 chunk 只含一个 token。接入真实接口时，如果没有逐 token 时间戳，应写 `time_to_first_content_chunk` 和 `chunk_interval`；不能把 chunk 间隔直接命名为严格 ITL。
 
-## 6.3 Warmup：让系统进入稳定状态
+时钟来源也要固定。单机时长适合使用单调时钟；跨机器事件需要时钟同步或 Trace 上下文，否则服务端事件与客户端事件可能无法安全相减。
 
-Warmup：让系统进入稳定状态 的价值在于排除冷启动、缓存填充、编译、连接建立和一次性初始化带来的干扰。LLM 服务里，第一次请求往往不能代表稳定运行状态。
+![客户端与服务端测量边界](figures/fig06-02_measurement_boundaries.svg)
 
-![repeat_distribution](figures/fig06-04_repeat_distribution.svg)
+图6-2：客户端与服务端测量边界。
 
-图6-4：Warmup：让系统进入稳定状态。
+## 6.2 TTFT、E2E、TPOT 与 ITL
 
-## 6.4 Repeat：把偶然波动变成可信区间
+假设客户端在 `t0` 发出请求，在 `t1` 观察到第一个输出 token，在 `t2 ... tn` 观察到后续 token，在 `t_end` 确认响应完成。
 
-Repeat：把偶然波动变成可信区间 让我们知道结论是否稳定。只报告一次运行结果，会把系统抖动、邻居负载、网络波动和调度偶然性混进分析结论。
-
-![prompt_output_matrix](figures/fig06-05_prompt_output_matrix.svg)
-
-图6-5：Repeat：把偶然波动变成可信区间。
-
-## 6.5 Prompt / Output 设计
-
-Prompt / Output 设计 决定请求更像 Prefill 压力还是 Decode 压力。长 prompt 会放大首包前计算，长 output 会放大逐 token 生成，二者不能用同一组结论互相替代。
-
-![concurrency_ladder](figures/fig06-06_concurrency_ladder.svg)
-
-图6-6：Prompt / Output 设计。
-
-## 6.6 Concurrency 设计
-
-Concurrency 设计 影响队列、batch 形成、GPU 利用率和尾延迟。并发不是越高越好，可信实验要说明并发梯度如何设置，以及每个梯度回答什么问题。
-
-![metric_collection](figures/fig06-07_metric_collection.svg)
-
-图6-7：Concurrency 设计。
-
-## 6.7 指标采集与结果记录
-
-指标采集与结果记录 需要同时记录客户端指标、服务端指标和资源状态。只看客户端延迟，不知道问题在哪里；只看 GPU 利用率，又无法说明用户体验。
-
-![result_record](figures/fig06-08_result_record.svg)
-
-图6-8：指标采集与结果记录。
-
-## 6.8 Demo：设计一次最小 Benchmark
-
-Demo：设计一次最小 Benchmark 把本章方法落到一个可执行动作里。本章 Demo 使用模拟或最小化数据时，必须明确说明边界：它用于展示方法，不作为真实硬件性能结论。
-
-本章 Demo 可以设计成一张 Benchmark Plan，而不是立刻追求完整压测平台。输入固定为一个 OpenAI-compatible LLM 服务，输出是一份实验计划表。
-
-示例输入：
+### TTFT：首 token 等待
 
 ```text
-模型：Qwen2.5-7B-Instruct
-框架：vLLM
-硬件：单张 A100 80GB
-场景：企业问答在线服务
-问题：当前 baseline 在交互式问答 workload 下是否稳定？
+TTFT = t1 - t0
 ```
 
-示例 workload：
+它描述用户等待首次有效反馈的时间。TTFT 是端到端结果指标，不等同于 Prefill；Queue、网络和入口处理都可能在其中。
 
-| 组别 | Prompt tokens | Output tokens | Concurrency | 请求数 | 回答问题 |
-|---|---:|---:|---:|---:|---|
-| A | 256 | 128 | 1 / 4 / 8 | 100 | 单轮短问答的基础延迟 |
-| B | 1024 | 128 | 1 / 4 / 8 | 100 | 长上下文对 TTFT 的影响 |
-| C | 512 | 512 | 1 / 4 / 8 | 100 | 长输出对 TPOT 和 TPS 的影响 |
-
-预期输出不是“哪个组最快”，而是：
+### E2E Latency：请求总时长
 
 ```text
-Baseline v0:
-  workload A/B/C 均完成 warmup 和 3 次 repeat
-  每组输出 TTFT、TPOT、TPS、P95/P99、GPU memory
-  记录环境版本和异常值
-  不跨 workload 比较单一指标
+E2E = t_end - t0
 ```
 
-这个 Demo 的课堂重点，是让学员意识到 Benchmark Design 先于 Benchmark Tool。工具可以换，计划不能省。
+E2E 同时受首 token 前等待、输出长度、生成节奏和响应尾部影响。比较 E2E 时必须同时报告输入与输出 token 分布。
 
-## 6.9 课堂案例：同一个模型为什么跑出两份结论
-
-团队 A 用 32 并发、短 prompt、长 output 测一个聊天模型，团队 B 用 4 并发、长 prompt、短 output 测同一个模型。两边都声称自己的 tokens/s 更可信。课堂讨论不急着判断谁对，而是先要求两边补齐 Baseline、Workload、Warmup、Repeat 和指标口径。
-
-课堂讨论：
-
-1. 这个案例最容易被误判成哪个问题？
-2. 还缺哪两类证据才能进入优化方案？
-
-### 补充案例 A：换一个工作负载
-
-离线批处理报告平均 tokens/s，在线聊天报告 P95 TTFT。两份报告看似冲突，其实回答的是不同问题。
-
-讨论重点：这个补充案例改变的是业务场景还是分析方法？
-
-### 补充案例 B：换一个系统条件
-
-模型版本相同但 tokenizer、max_model_len 和采样参数不同，Benchmark 结论不能直接比较。
-
-讨论重点：哪些结论仍然成立，哪些必须重新验证？
-
-### 贯穿案例：企业问答服务的 Baseline 合同
-
-假设企业问答服务准备进入优化阶段。业务方反馈“最近慢了”，平台方希望先建立 Baseline。你可以把第 6 章的方法落成一份合同：
+### ITL：相邻 token 间隔
 
 ```text
-Baseline Contract:
-  目标：建立企业问答在线服务优化前 baseline
-  模型：Qwen2.5-7B-Instruct
-  场景：交互式问答，不覆盖离线批量总结
-  Prompt 分布：P50=500 tokens, P95=1800 tokens
-  Output 分布：P50=120 tokens, P95=350 tokens
-  并发梯度：1, 4, 8, 16, 32
-  Warmup：每组先跑 30 个请求，结果丢弃
-  Repeat：每组重复 3 次
-  指标：TTFT, TPOT, TPS, RPS, P95/P99, GPU memory
-  边界：不用于评价长文档总结、Agent 多轮调用和离线批处理
+ITL_i = t_i - t_(i-1),  i >= 2
 ```
 
-这个合同不是最终答案，但它能阻止一个常见争论：A 同学拿短问答吞吐说系统健康，B 同学拿长上下文 TTFT 说系统很慢。合同把“我们到底在测什么”写清楚，后续优化才有共同参照。
+ITL 是一组值，可以计算均值与分位数。它直接呈现流式输出是否均匀。只报告平均 ITL 会隐藏偶发停顿。
 
-![demo_benchmark_plan](figures/fig06-09_demo_benchmark_plan.svg)
+### TPOT：首 token 之后的平均 token 时间
 
-图6-9：课堂案例：同一个模型为什么跑出两份结论。
+本书的客户端 Demo 使用：
+
+```text
+TPOT = mean(ITL_2 ... ITL_n)
+     = (t_n - t_1) / (n - 1),  n > 1
+```
+
+只有一个输出 token 时，TPOT 未定义，报告为 `null`，而不是 0。其他工具可能用 `(E2E - TTFT) / (output_tokens - 1)`；如果 `t_end` 还包含尾部网络或清理时间，两种结果会有差异。报告中必须写公式。
+
+![TTFT、TPOT 与 ITL](figures/fig06-03_ttft_tpot_itl_timeline.svg)
+
+图6-3：TTFT、TPOT 与 ITL。
+
+## 6.3 TPS、RPS 与 Goodput
+
+“TPS”这个缩写很容易制造误解。它可能指 Input Tokens/s、Output Tokens/s，也可能把两者相加。本书要求把方向写进名称。
+
+### Output Tokens Per Second
+
+对并发请求，系统吞吐使用共享测量窗口：
+
+```text
+Output TPS
+  = window 内成功生成的 output tokens
+    / (最后结束时间 - 最早开始时间)
+```
+
+不能把各请求的 `output_tokens / request_latency` 相加，那会重复计算并发重叠的墙钟时间。
+
+### Requests Per Second
+
+```text
+RPS = window 内成功请求数 / measurement_window
+```
+
+RPS 与 Output TPS 不会固定同比变化。短回答可能带来高 RPS、低 Output TPS；长回答可能相反。两者都要带上 workload。
+
+### Goodput
+
+Throughput 只问“做了多少”，Goodput 还要求结果有效。先定义合格条件，例如：
+
+```text
+good request
+  = success
+  AND TTFT <= 250 ms
+  AND E2E <= 800 ms
+
+Goodput = good requests / measurement_window
+```
+
+SLO 条件必须写进报告。不同团队若使用不同阈值，Goodput 数字不能直接比较。对于 Agent，还可以增加任务完成、工具调用成功或最大步数等业务条件。
+
+![TPS、RPS 与 Goodput](figures/fig06-04_throughput_and_goodput.svg)
+
+图6-4：TPS、RPS 与 Goodput。
+
+## 6.4 P50、P95、P99 与尾延迟
+
+平均值回答整体中心，分位数回答请求分布。将 N 个延迟从小到大排序，P95 表示按指定算法取出的 95% 位置值。它不表示“最慢 5% 的平均值”。
+
+分位数算法不止一种。课程 Demo 使用 **nearest-rank**：
+
+```text
+rank = ceil(p / 100 × N)
+percentile = sorted_values[rank]
+```
+
+Python、NumPy、Prometheus、数据库和可观测平台可能采用插值、直方图估计或 nearest-rank。算法不同，小样本结果尤其容易不同。
+
+样本量必须与 P99 一起报告。只有 20 个请求时，nearest-rank P99 实际取到最大值，很难支撑稳定的生产尾延迟结论。直方图指标还要报告 bucket 边界，否则 P99 只是桶内估计。
+
+尾延迟分析还要分桶。长 Prompt、长 Output、高并发、冷启动和错误重试混在同一分布里，整体 P99 很难指导行动。按 workload 特征分层后，才知道尾部来自哪类请求。
+
+![P50、P95 与 P99](figures/fig06-05_percentiles_and_tail.svg)
+
+图6-5：P50、P95 与 P99。
+
+## 6.5 资源指标不是用户结果
+
+GPU Utilization、显存占用、HBM Throughput、SM Throughput、Power、CPU Utilization 和 Queue Depth 都很重要。它们适合解释“系统内部发生了什么”，不能单独证明“用户体验更好”。
+
+例如，GPU Utilization 从 55% 升到 90% 可能意味着：
+
+- Batch 更大，Output TPS 上升；
+- Queue 更长，TTFT P99 同时恶化；
+- 请求量本身上升，系统接近饱和；
+- 某个低效 Kernel 长时间占用 GPU；
+- 采样窗口变化，两个数字不可比。
+
+显存占用也只是容量状态。更多 KV Cache 可能支持更高并发，也可能让可用余量过小、增加抢占或 OOM 风险。
+
+一份完整报告至少把两类指标放在一起：结果指标说明是否达成用户或业务目标，资源指标帮助提出和验证原因。第 7 章会把它们放入统一因果模型。
+
+![资源指标与结果指标](figures/fig06-06_resource_vs_outcome.svg)
+
+图6-6：资源指标与结果指标。
+
+## 6.6 成本指标：分母决定结论
+
+“Cost per Token 下降了”缺少三个关键信息：计算的是输入还是输出 token，成本包含哪些资源，失败与未达标请求如何处理。
+
+常见口径包括：
+
+```text
+USD per 1M input tokens
+  = total serving cost / input tokens × 1,000,000
+
+USD per 1M output tokens
+  = total serving cost / output tokens × 1,000,000
+
+USD per successful request
+  = total serving cost / successful requests
+
+USD per good request
+  = total serving cost / requests satisfying SLO
+```
+
+总成本可只算 GPU，也可包含 CPU、内存、存储、网络、托管服务与运维摊销。两份报告若成本范围不同，即使分母相同也不能直接比较。
+
+失败请求消耗过资源但没有形成成功结果。若总成本包含失败请求，`USD per successful request` 会把这部分浪费计入单位成功成本，这通常更接近业务现实。若报告选择排除失败成本，也必须明示。
+
+输入和输出 token 的计算成本与供应商定价可能不同。不要把两者简单相加后仍称为“每 token 成本”，除非业务明确接受这个合并口径。
+
+![成本指标的分母](figures/fig06-07_cost_denominators.svg)
+
+图6-7：成本指标的分母。
+
+## 6.7 可比较的指标合同
+
+两个数字可以比较，至少要共享下面这份合同：
+
+| 字段 | 必须写清的内容 |
+|---|---|
+| Question | 指标要回答的业务或工程问题 |
+| Workload | 模型、Prompt / Output 分布、并发、采样和请求类型 |
+| Boundary | Client、Gateway、Engine、Worker 或 GPU |
+| Clock | 单调时钟、墙钟、跨机同步方式 |
+| Window | 起止事件、Warmup 是否排除、窗口长度 |
+| Unit | ms、s、tokens/s、requests/s、USD |
+| Aggregation | mean、nearest-rank、直方图估计、窗口平均 |
+| Denominator | 输入 token、输出 token、成功请求、good request |
+| Failures | 失败、取消、超时和重试如何计入 |
+| Sample | 请求数、重复次数与分桶方式 |
+
+任何一项变化，都可能让同名指标失去可比性。最实用的习惯是让报告同时保存公式、元数据和原始记录，而不是只保存截图。
+
+![可比较的指标合同](figures/fig06-08_metric_contract.svg)
+
+图6-8：可比较的指标合同。
+
+## 6.8 Demo：从请求记录生成指标报告
+
+本章 Demo 位于 `chapter06/demo`，只依赖 Python 标准库。它读取 JSONL 请求记录，生成客户端口径的延迟、吞吐、Goodput 与成本报告。
+
+运行合成样例：
+
+```bash
+cd chapter06/demo
+python3 metrics_report.py
+```
+
+每条记录包含：
+
+- `start_ms`、`token_times_ms` 和 `end_ms`；
+- `prompt_tokens`、`output_tokens`；
+- `success` 和 `cost_usd`。
+
+Demo 会拒绝逆序 token 时间、输出 token 数量不一致，以及失败请求仍声称完成输出等脏数据。报告使用所有请求的最早开始到最晚结束作为共享墙钟窗口，并把分位数算法、TPOT 公式和 SLO 条件写入 `measurement_contract`。
+
+`synthetic_client_metrics` 表示输入是合成客户端记录。真实流式 API 若只能提供 chunk 到达时间，需要更换字段名称或在客户端重新 tokenize，不能原样沿用 token 口径。
+
+![Demo 输出指标报告](figures/fig06-09_demo_metrics_report.svg)
+
+图6-9：Demo 输出指标报告。
+
+## 6.9 课堂案例：TPS 提升，为什么产品团队仍说变慢了
+
+平台团队把 Batch 和并发提高后，报告 `Output TPS +35%`、GPU Utilization 从 55% 升到 82%。产品团队同时看到 `TTFT P95` 从 1.1 秒升到 2.4 秒，取消率也上升。
+
+这两份报告不矛盾。平台报告描述系统产能与资源使用，产品报告描述交互体验与有效完成。课堂上先补合同：两边是否使用相同流量窗口、Prompt / Output 分布、客户端边界和成功条件？
+
+然后定义护栏：如果优化目标是提升 Output TPS，TTFT P95、Goodput、取消率和单位 good request 成本至少要同时报告。是否上线取决于业务 SLO，不取决于哪一方的图更漂亮。
+
+### 补充案例 A：RAG 的输入成本被藏起来了
+
+RAG 优化前后，答案长度几乎不变，团队只报告 `USD per 1M output tokens`。新版本召回了更多文档，Prompt 从 2K 增长到 12K，输入计算和 TTFT 都上升。只看输出 token 分母会漏掉主要变化。
+
+练习：补充 `input_tokens/request`、TTFT 分布、`USD per 1M input tokens` 和 `USD per good request`。第 23 章会进一步拆分检索、重排和生成成本。
+
+### 补充案例 B：Agent 单次调用快，任务仍然慢
+
+一个 Agent 的每次 LLM 调用 TTFT 和 TPOT 都达标，但完成一个任务需要 8 次串行 LLM 调用、3 次工具调用和一次重试。单次请求指标正常，任务 E2E 却很高。
+
+练习：增加 `task_e2e_ms`、`llm_calls_per_task`、`tool_wait_ms`、`retry_count` 和 `successful_tasks`，并用 `good tasks / second` 而不是单次请求 Goodput 表达业务产能。第 24 章会建立正式 Agent 指标。
 
 ## 6.10 常见误区
 
-误区一：把单次运行结果当成性能结论。
+误区一：把客户端 chunk 当成 token。
 
-单次结果只能说明那一次发生了什么，不能说明系统稳定能力。正式分析必须说明重复次数、波动范围和异常值处理方式。
+一个 chunk 可能包含零个、一个或多个 token。没有 token 级时间戳时，应使用 chunk 口径命名。
 
-误区二：看到一个指标变化就直接选择优化技术。
+误区二：并发请求的 tokens/s 用单请求速度相加。
 
-指标只是现象。进入优化之前，要先证明它来自哪个组件、哪个阶段、哪类资源约束。
+系统吞吐要用共享墙钟窗口。相加单请求速度会重复计算重叠时间。
 
-误区三：只保留支持自己判断的数据。
+误区三：TPOT 只有一个输出 token 时记为 0。
 
-性能工程要能被复核。反例、波动和限制条件同样要写进报告。
+没有首 token 之后的间隔，TPOT 不存在。0 会错误暗示生成是瞬时完成的。
 
-![benchmark_boundary](figures/fig06-10_benchmark_boundary.svg)
+误区四：P99 不带样本量与算法。
 
-图6-10：Benchmark Design 的章节边界。
+小样本或不同插值方法会产生不同结果。报告 P99 时要写请求数和计算方式。
 
-## 6.11 Benchmark 报告模板
+误区五：GPU Utilization 是最终目标。
 
-Benchmark 结束后，不要只保留一张结果截图。最低限度要写出一份可以复核的报告。报告不是为了形式完整，而是为了让后续章节能够判断：这个 Baseline 能不能作为优化前的参照物。
+资源指标用于解释结果，不替代 TTFT、Goodput、成功率和成本。
 
-一份最小报告应包含：
+误区六：成本指标省略分母。
 
-| 字段 | 应该写什么 | 为什么需要 |
-|---|---|---|
-| 目标 | 这次 Benchmark 回答什么问题 | 防止把离线吞吐和在线体验混在一起 |
-| 环境 | 模型、框架、版本、GPU、驱动、并行方式 | 防止不同环境结果被直接比较 |
-| Workload | prompt 长度、output 长度、并发、请求数、请求分布 | 防止只用一个请求形态代表所有场景 |
-| Warmup | 预热次数、预热时间、丢弃哪些结果 | 排除冷启动、编译和缓存填充影响 |
-| Repeat | 重复次数、统计口径、异常值处理 | 判断结论是否稳定 |
-| 指标 | TTFT、TPOT / ITL、TPS、RPS、P95 / P99、显存、GPU Utilization | 让读者知道这次结论回答哪些问题 |
-| 结论 | 哪个指标变化、变化幅度、在哪个条件下成立 | 避免把局部结果写成普遍规律 |
-| 限制 | 未覆盖的模型、硬件、请求形态或生产条件 | 给后续复现实验留下边界 |
-
-可以把报告摘要写成下面这种格式：
-
-```text
-在 Qwen2.5-7B、vLLM、单张 A100 80GB 环境下，
-本次 Benchmark 使用 3 组 prompt/output 长度和 5 组并发梯度，
-每组执行 3 次 repeat，丢弃 warmup 结果。
-
-在 512 输入 / 128 输出、并发 16 的在线聊天 workload 下，
-P95 TTFT 为 X ms，平均 TPOT 为 Y ms，峰值 TPS 为 Z。
-当前结论只适用于该模型、该框架版本和该请求分布；
-长上下文总结和离线批处理需要单独建立 Baseline。
-```
-
-这段文字看起来比一个数字长，但它能保护团队少犯两类错：第一，把不稳定结果当成优化收益；第二，把一个 workload 的结果推广到所有业务。
-
-## 6.12 课堂执行建议
-
-这一章适合用“同一系统，两份 Benchmark 报告”的方式讲。教师可以先给出两组看似矛盾的数据：一组显示 TPS 很高，另一组显示 P95 TTFT 很差。不要马上解释答案，而是让学员先检查两份报告的 workload、并发、prompt/output 分布、warmup 和 repeat。
-
-课堂上可以按三个步骤推进：
-
-第一步，让学员只看结果表。大多数人会自然地选择自己熟悉的指标，例如 tokens/s 或平均延迟。这个阶段的目的，是暴露“只看单个指标”的直觉问题。
-
-第二步，补充实验条件。告诉学员第一份报告使用短 prompt、长 output、较高并发，第二份报告使用长 prompt、短 output、较低并发。此时要引导他们意识到：两份结果并不一定矛盾，因为它们回答的问题不同。
-
-第三步，要求学员重写 Benchmark 结论。合格的结论不能写成“模型 A 更快”，而应该写成“在某个 workload、某个并发、某个硬件和某组指标下，模型 A 的某个指标更好”。这句话虽然啰嗦，却是性能工程最重要的严谨性。
-
-本章结束时，学员应该能完成一个小产出：给任意一次 Benchmark 补齐实验合同。这个合同不需要复杂，但必须包含目标、环境、workload、warmup、repeat、指标和限制条件。后续所有优化章节，都应该引用这个合同作为 Baseline。
+输入 token、输出 token、成功请求和 good request 会给出不同工程结论。
 
 ## 本章总结
 
-本章回答了“如何建立可信、可重复的性能 Baseline？”这个问题。核心结论是：性能分析要先建立可复现输入，再采集合适层级的证据，最后把现象转化为可验证的假设。
+LLM 性能指标必须绑定问题、边界、窗口、算法和分母。TTFT 描述首 token 等待，ITL / TPOT 描述首 token 之后的输出节奏，E2E 描述完整请求；Output TPS、RPS 和 Goodput 分别描述 token 产能、请求产能和满足条件的有效产能。
 
-本章不要求你已经会优化 Prefill、Decode 或 Serving。它要求你在进入优化之前，能够说清楚当前系统的 Baseline 是什么、证据来自哪里、Root Cause 假设如何被验证。
+P50、P95、P99 要带上样本量与分位数算法。GPU 与显存指标是解释线索，不是用户结果。成本报告必须明确资源范围，以及输入 token、输出 token、成功请求或 SLO 合格请求等成本分母。
+
+下一章把这些结果指标、生命周期阶段和第 5 章的资源约束连接起来，形成 Global Performance Model。
 
 ### 本章 Checklist
 
-- [ ] 能说清楚本章问题对应的系统阶段。
-- [ ] 能写出 Baseline、Workload、指标和重复性边界。
-- [ ] 能区分客户端观测、服务端状态和 GPU 证据。
-- [ ] 能提出至少两个可验证假设，而不是直接给优化方案。
-- [ ] 能说明本章内容与下一章或下一篇的衔接。
+- [ ] 能分别写出 TTFT、E2E、ITL 和本书 TPOT 公式。
+- [ ] 能区分客户端首 chunk、服务端首 token 与 GPU Kernel 时间。
+- [ ] 能用共享墙钟窗口计算 Output TPS 和 RPS。
+- [ ] 能为业务 SLO 定义 Goodput。
+- [ ] 能解释 nearest-rank P95 / P99 与样本量的关系。
+- [ ] 能区分结果指标与资源指标。
+- [ ] 能为成本指标写清成本范围和分母。
+- [ ] 能为两份待比较报告补齐指标合同。
 
 ## 课后练习
 
-1. 选一个你熟悉的 LLM 服务，写出一个最小可复现分析计划。
-2. 为同一个模型设计两组不同 workload，并说明它们分别强调什么瓶颈。
-3. 读一份压测结果，标出哪些结论证据充分，哪些还只是猜测。
-4. 把课堂案例改写成你所在业务的场景，保留本章分析边界。
-5. 写一段 200 字以内的分析报告摘要，要求包含现象、证据、假设和下一步验证动作。
+1. 给定 `t0=0ms`、token 时间 `[300, 350, 420, 500]ms`、`t_end=520ms`，计算 TTFT、E2E、每个 ITL 和 TPOT。
+2. 两个并发请求在 2 秒共享窗口内共生成 300 个输出 tokens、成功完成 8 个请求，计算 Output TPS 与 RPS。
+3. 在第 2 题中，若只有 6 个请求满足 `TTFT <= 500ms` 且 `E2E <= 2s`，计算 Goodput。
+4. 使用 nearest-rank 计算 20 个样本的 P95 和 P99 分别落到第几个排序值，并解释其局限。
+5. 修改 Demo 的 SLO 阈值，观察 Throughput 不变而 Goodput 改变的场景。
+6. 为一个 RAG 或 Agent 服务写一份指标合同，至少包含 Boundary、Window、Aggregation、Failures 和成本分母。

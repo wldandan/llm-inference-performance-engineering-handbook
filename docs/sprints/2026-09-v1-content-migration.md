@@ -112,8 +112,29 @@
 3. Compute、Bandwidth 和 Launch 三类合成场景能被区分。
 4. 报告明确标记为 `synthetic_gpu_mental_model`，不冒充 Benchmark。
 
+## Task CH06：LLM 性能指标
+
+### 验收条件
+
+- [x] 指标按用户体验、产能、可靠产能、资源和成本五类问题组织。
+- [x] Client、Server 与 GPU 测量边界在公式之前明确区分。
+- [x] TTFT、E2E、ITL、TPOT、Output TPS、RPS 与 Goodput 公式和空值语义清楚。
+- [x] 分位数固定使用 nearest-rank，并连同样本量、算法和 workload 分桶报告。
+- [x] 成本口径区分输入 token、输出 token、成功请求与 good request。
+- [x] 离线 Demo 使用共享墙钟窗口，输出完整 measurement contract。
+- [x] Review、Storyboard、9 张 v2 SVG 和 figure-note 与章节目标一致。
+- [x] 8 项 Demo 测试、视觉契约、SVG 解析和原尺寸检查通过。
+
+### 测试用例
+
+1. 请求级 TTFT、E2E、ITL 与 TPOT 按同一客户端时钟计算。
+2. Output TPS 和 RPS 使用共享墙钟窗口，不相加单请求速度。
+3. Goodput 只统计成功且同时满足 TTFT / E2E SLO 的请求。
+4. 逆序时间、token 数不一致和失败请求伪造输出会被拒绝。
+5. 报告保留 nearest-rank、成本分母、workload 和合成数据标记。
+
 ## 下一批任务
 
-1. 迁移 Chapter 6：LLM 性能指标，统一客户端、服务端和成本口径。
-2. 迁移 Chapter 7：Global Performance Model，并增加 RAG / Agent 端到端分解。
+1. 迁移 Chapter 7：Global Performance Model，并增加 RAG / Agent 端到端分解。
+2. 更新 Part 章节范围校验，使 Part 1 覆盖 Chapter 1–7。
 3. 完成 Part 1 全量测试、图片渲染、链接与交付审计。

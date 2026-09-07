@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0L10 5L0 10z" fill="#333"/></marker><style>.t{font:700 32px Arial,sans-serif;fill:#111}.b{fill:#fff;stroke:#222;stroke-width:2}.q{font:600 17px Arial,sans-serif;fill:#555;text-anchor:middle}.h{font:600 24px Arial,sans-serif;fill:#111;text-anchor:middle}.s{font:17px Arial,sans-serif;fill:#444;text-anchor:middle}.l{stroke:#333;stroke-width:2;marker-end:url(#a)}.take{font:600 20px Arial,sans-serif;fill:#222;text-anchor:middle}</style></defs>
+  <rect width="1280" height="720" fill="#fff"/><text x="64" y="72" class="t">Router、Admission 与 Engine Scheduler</text>
+  <rect x="80" y="185" width="300" height="285" rx="12" class="b"/><text x="230" y="235" class="q">WHERE?</text><text x="230" y="282" class="h">Router</text><text x="230" y="333" class="s">target replica / engine</text><text x="230" y="374" class="s">placement + health state</text>
+  <rect x="490" y="185" width="300" height="285" rx="12" class="b"/><text x="640" y="235" class="q">WHETHER NOW?</text><text x="640" y="282" class="h">Admission</text><text x="640" y="333" class="s">accept / queue / reject</text><text x="640" y="374" class="s">priority + SLO + quota</text>
+  <rect x="900" y="185" width="300" height="285" rx="12" class="b"/><text x="1050" y="235" class="q">WHO RUNS NEXT?</text><text x="1050" y="282" class="h">Engine Scheduler</text><text x="1050" y="333" class="s">iteration plan</text><text x="1050" y="374" class="s">token + KV budget</text>
+  <line x1="380" y1="328" x2="486" y2="328" class="l"/><line x1="790" y1="328" x2="896" y2="328" class="l"/>
+  <rect x="120" y="575" width="1040" height="72" rx="10" fill="#f5f5f5" stroke="#aaa"/><text x="640" y="620" class="take">Key Takeaway：三层决策的输入、频率和输出都不同</text>
+</svg>

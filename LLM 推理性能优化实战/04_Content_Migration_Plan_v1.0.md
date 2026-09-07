@@ -15,8 +15,8 @@
 | v1.0 章节 | 主要来源 | 动作 | 说明 |
 |---|---|---|---|
 | Ch1 第一个 LLM 服务 | 旧 Ch1 + 旧 Ch2 Demo | 重写 | 已完成；先跑通服务，再建立请求链路直觉。 |
-| Ch2 Inference Lifecycle | 旧 Ch1 | 重写 | 建立正式阶段模型、状态转换、取消与资源回收，避免重复 Ch1 操作说明。 |
-| Ch3 LLM Inference Architecture | 旧 Ch2 | 平移 | 保留组件分层和成熟系统映射，统一更新图号与章节引用。 |
+| Ch2 Inference Lifecycle | 旧 Ch1 | 重写 | 已完成；建立正式阶段模型、状态转换、取消与资源回收，避免重复 Ch1 操作说明。 |
+| Ch3 LLM Inference Architecture | 旧 Ch2 | 平移 | 已完成；保留组件分层和成熟系统映射，统一更新图号与章节引用。 |
 | Ch4 Transformer 推理机制 | Workshop 00 + 新内容 | 新建 | 补齐 Attention、Sampling、Prefill / Decode 与 KV Cache 的模型原理。 |
 | Ch5 GPU 性能心智模型 | 旧 Ch3 | 重写 | Core 只保留算力、容量、带宽和 Kernel 直觉；高级 CUDA 下沉为 Advanced。 |
 | Ch6 LLM 性能指标 | 旧 Ch4 | 平移 | 更新指标边界、统计口径与成本指标。 |
@@ -70,9 +70,9 @@
 ## 5. 当前顺序
 
 1. Ch1：已完成。
-2. Ch2：重写 Inference Lifecycle。
-3. Ch3：迁移 Architecture，释放旧 Ch3 的 GPU 内容。
-4. Ch4：接入 Workshop 00，建立 Transformer 推理机制。
-5. Ch5–Ch7：依次迁移 GPU、Metrics 和 Global Performance Model。
+2. Ch2：已完成 Inference Lifecycle 重写。
+3. Ch3：已完成 Architecture 迁移，旧 Ch3 的 GPU 插图已保留到 Chapter 5 迁移素材目录。
+4. Ch4：下一步接入 Workshop 00，建立 Transformer 推理机制。
+5. Ch5–Ch7：随后依次迁移 GPU、Metrics 和 Global Performance Model。
 
 完成 Part 1 后，再批量推进可平移的 Ch8–Ch22；RAG、Agent、规模化与综合项目单独设计和验收。

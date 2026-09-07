@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0L10 5L0 10z" fill="#333"/></marker>
+    <style>.title{font:700 32px Arial,sans-serif;fill:#111}.box{fill:#fff;stroke:#222;stroke-width:2}.role{font:600 17px Arial,sans-serif;fill:#111;text-anchor:middle}.sub{font:15px Arial,sans-serif;fill:#555;text-anchor:middle}.req{stroke:#333;stroke-width:2;marker-end:url(#arrow)}.resp{fill:none;stroke:#666;stroke-width:2;stroke-dasharray:8 7;marker-end:url(#arrow)}.label{font:16px Arial,sans-serif;fill:#555}.take{font:600 20px Arial,sans-serif;fill:#222;text-anchor:middle}</style>
+  </defs>
+  <rect width="1280" height="720" fill="#fff"/><text x="64" y="72" class="title">LLM 推理系统全局架构</text>
+  <text x="48" y="190" class="label">Request Path</text>
+  <g>
+    <rect x="40" y="245" width="125" height="88" rx="8" class="box"/><text x="102" y="281" class="role">Client</text><text x="102" y="307" class="sub">business call</text>
+    <rect x="190" y="245" width="125" height="88" rx="8" class="box"/><text x="252" y="281" class="role">Gateway</text><text x="252" y="307" class="sub">protocol</text>
+    <rect x="340" y="245" width="125" height="88" rx="8" class="box"/><text x="402" y="281" class="role">Router</text><text x="402" y="307" class="sub">placement</text>
+    <rect x="490" y="245" width="125" height="88" rx="8" class="box"/><text x="552" y="281" class="role">Admission</text><text x="552" y="307" class="sub">accept / queue</text>
+    <rect x="640" y="245" width="125" height="88" rx="8" class="box"/><text x="702" y="281" class="role">Scheduler</text><text x="702" y="307" class="sub">iteration plan</text>
+    <rect x="790" y="245" width="125" height="88" rx="8" class="box"/><text x="852" y="281" class="role">Worker</text><text x="852" y="307" class="sub">model state</text>
+    <rect x="940" y="245" width="125" height="88" rx="8" class="box"/><text x="1002" y="281" class="role">Runtime</text><text x="1002" y="307" class="sub">operators</text>
+    <rect x="1090" y="245" width="150" height="88" rx="8" class="box"/><text x="1165" y="281" class="role">Accelerator</text><text x="1165" y="307" class="sub">GPU / device</text>
+    <line x1="165" y1="289" x2="186" y2="289" class="req"/><line x1="315" y1="289" x2="336" y2="289" class="req"/><line x1="465" y1="289" x2="486" y2="289" class="req"/><line x1="615" y1="289" x2="636" y2="289" class="req"/><line x1="765" y1="289" x2="786" y2="289" class="req"/><line x1="915" y1="289" x2="936" y2="289" class="req"/><line x1="1065" y1="289" x2="1086" y2="289" class="req"/>
+    <path d="M1165 333 V430 H252 V337" class="resp"/><text x="48" y="438" class="label">Response Path</text><text x="690" y="458" class="sub">result returns without repeating placement or admission</text>
+  </g>
+  <rect x="120" y="575" width="1040" height="72" rx="10" fill="#f5f5f5" stroke="#aaa"/><text x="640" y="620" class="take">Key Takeaway：先固定逻辑责任，再决定进程和设备如何部署</text>
+</svg>

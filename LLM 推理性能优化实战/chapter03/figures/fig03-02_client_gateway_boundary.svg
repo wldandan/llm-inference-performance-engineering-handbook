@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0L10 5L0 10z" fill="#333"/></marker><style>.t{font:700 32px Arial,sans-serif;fill:#111}.panel{fill:#fff;stroke:#222;stroke-width:2}.item{fill:#fafafa;stroke:#777;stroke-width:1.5}.h{font:600 24px Arial,sans-serif;fill:#111;text-anchor:middle}.s{font:17px Arial,sans-serif;fill:#444;text-anchor:middle}.line{stroke:#333;stroke-width:2;marker-end:url(#a)}.dash{stroke:#777;stroke-width:2;stroke-dasharray:8 7}.take{font:600 20px Arial,sans-serif;fill:#222;text-anchor:middle}</style></defs>
+  <rect width="1280" height="720" fill="#fff"/><text x="64" y="72" class="t">Client 与 Gateway：业务调用和服务入口</text>
+  <rect x="80" y="150" width="440" height="350" rx="12" class="panel"/><text x="300" y="198" class="h">Client</text>
+  <rect x="130" y="235" width="150" height="70" rx="8" class="item"/><text x="205" y="277" class="s">Business Context</text>
+  <rect x="320" y="235" width="150" height="70" rx="8" class="item"/><text x="395" y="277" class="s">Trace ID</text>
+  <rect x="130" y="345" width="150" height="70" rx="8" class="item"/><text x="205" y="387" class="s">Timeout / Retry</text>
+  <rect x="320" y="345" width="150" height="70" rx="8" class="item"/><text x="395" y="387" class="s">Cancel / Consume</text>
+  <line x1="565" y1="125" x2="565" y2="525" class="dash"/><text x="565" y="548" class="s">Protocol Boundary</text>
+  <rect x="610" y="150" width="590" height="350" rx="12" class="panel"/><text x="905" y="198" class="h">Gateway</text>
+  <rect x="660" y="235" width="210" height="70" rx="8" class="item"/><text x="765" y="277" class="s">Protocol / Auth</text>
+  <rect x="920" y="235" width="220" height="70" rx="8" class="item"/><text x="1030" y="277" class="s">Validate / Normalize</text>
+  <rect x="660" y="345" width="210" height="70" rx="8" class="item"/><text x="765" y="387" class="s">Quota / Rate Limit</text>
+  <rect x="920" y="345" width="220" height="70" rx="8" class="item"/><text x="1030" y="387" class="s">Streaming Response</text>
+  <line x1="520" y1="270" x2="606" y2="270" class="line"/><line x1="610" y1="390" x2="524" y2="390" class="line"/>
+  <rect x="120" y="590" width="1040" height="62" rx="10" fill="#f5f5f5" stroke="#aaa"/><text x="640" y="629" class="take">Key Takeaway：Gateway 管入口契约，不决定下一轮 token batch</text>
+</svg>

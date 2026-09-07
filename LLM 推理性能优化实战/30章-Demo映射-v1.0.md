@@ -6,7 +6,7 @@
 |---|---|---|---|---|
 | Ch1 | 第一个 LLM 服务 | 请求成功率、TTFT、流式首包 | Level 1/2 | 已有代码，单测通过；GPU 实跑待验收 |
 | Ch2 | 请求生命周期追踪 | Queue、Prefill、Decode 时间 | Level 1/2 | 已有代码，9 项单测通过 |
-| Ch3 | 服务架构拆解 | 请求状态、组件边界 | Level 1 | 待建设 |
+| Ch3 | 服务架构拆解 | 请求路径、响应路径、组件边界 | Level 1 | 已有代码，13 项单测通过 |
 | Ch4 | Transformer 与 KV Cache 演示 | Cache 正确性、生成时间 | Level 1/2 | 已有代码，可迁移 |
 | Ch5 | GPU 性能心智模型 | GPU Util、带宽、Kernel 时间 | Level 2 | 待建设 |
 | Ch6 | 指标采集客户端 | TTFT、TPOT、TPS、P99 | Level 1/2 | 已有公共工具 |

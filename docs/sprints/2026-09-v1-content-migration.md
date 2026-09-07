@@ -53,8 +53,29 @@
 4. 非法状态跳转、逆序时间戳和错误 JSONL 被拒绝。
 5. CLI 能打印报告，也能保存 JSON 报告。
 
+## Task CH03：LLM Inference Architecture
+
+### 验收条件
+
+- [x] 用 Client、Gateway、Router、Admission、Engine Scheduler、Worker、Runtime 和 Accelerator 描述完整请求链路。
+- [x] 区分逻辑角色、进程或 Pod 等部署单元，不把架构图误当作固定拓扑。
+- [x] 区分请求平面、控制平面和遥测平面，并明确三类状态的权威所有者。
+- [x] 成熟系统映射覆盖 Serving Platform、Inference Server 和 LLM Engine 三个层级，不形成产品排名。
+- [x] Demo 能校验角色、组件 ID、连线类型、连线端点以及请求和响应路径完整性。
+- [x] 旧 Chapter 3 的 GPU 正文插图被释放并完整保留到 Chapter 5 的迁移素材目录。
+- [x] Review、Storyboard 和 10 张 SVG 与新版章节目标一致。
+- [x] 13 项单元测试、章节结构校验、SVG 解析和原尺寸渲染检查通过。
+
+### 测试用例
+
+1. 合法架构输出请求路径、响应路径、部署单元和角色契约。
+2. 重复组件 ID、缺失必要角色、未知端点和不支持的连线类型被拒绝。
+3. 不完整的请求或响应角色路径被拒绝。
+4. CLI 能读取 JSON、打印报告并保存报告文件。
+5. 仓库自带参考架构能通过全部校验。
+
 ## 下一批任务
 
-1. 将现有 Architecture 内容迁移到 Chapter 3。
-2. 新建 Chapter 4：Transformer 推理机制。
-3. 依次对齐 Chapter 5–7 的 GPU、指标和全局性能模型。
+1. 新建 Chapter 4：Transformer 推理机制。
+2. 使用已保留的旧 Chapter 3 素材重写 Chapter 5：GPU 性能心智模型。
+3. 依次对齐 Chapter 6–7 的指标和全局性能模型。

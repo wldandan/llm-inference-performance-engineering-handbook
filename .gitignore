@@ -18,3 +18,5 @@ chapters/**/demo/*result*.json
 chapters/**/demo/outputs/
 chapter*/demo/*result*.json
 chapter*/demo/outputs/
+**/chapter*/demo/*result*.json
+**/chapter*/demo/outputs/

@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>第1章 LLM 推理流程</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --ink: #17202a;
+      --muted: #5d6875;
+      --line: #d9dee7;
+      --blue: #2563eb;
+      --teal: #0f766e;
+      --amber: #b45309;
+      --red: #be123c;
+      --white: #ffffff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    .slide {
+      display: none;
+      width: 100vw;
+      height: 100vh;
+      padding: clamp(1.25rem, 2.6vw, 2.8rem);
+    }
+    .slide.active {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: clamp(1rem, 1.8vw, 1.5rem);
+    }
+    .hero {
+      background:
+        linear-gradient(120deg, rgba(37,99,235,.12), rgba(15,118,110,.14)),
+        radial-gradient(circle at 82% 18%, rgba(180,83,9,.15), transparent 28%),
+        #ffffff;
+      align-content: center;
+    }
+    h1, h2, h3, p { margin-top: 0; letter-spacing: 0; }
+    h1 { max-width: 16ch; font-size: clamp(2.4rem, 5vw, 5rem); line-height: 1.04; margin-bottom: 1rem; }
+    h2 { font-size: clamp(1.8rem, 3vw, 3rem); line-height: 1.12; margin-bottom: .3rem; }
+    h3 { font-size: clamp(1.05rem, 1.65vw, 1.45rem); line-height: 1.2; margin-bottom: .45rem; }
+    p, li, td, th { font-size: clamp(1rem, 1.35vw, 1.22rem); line-height: 1.48; }
+    ul, ol { margin: 0; padding-left: 1.25rem; }
+    code { font-family: "SFMono-Regular", Consolas, monospace; background: #eef2f7; padding: .1rem .32rem; border-radius: 5px; }
+    pre { margin: 0; padding: 1rem; overflow: auto; background: #101827; color: #e5edf7; border-radius: 8px; font-size: clamp(1rem, 1.2vw, 1.1rem); line-height: 1.5; }
+    table { width: 100%; border-collapse: collapse; background: var(--white); border: 1px solid var(--line); }
+    th, td { text-align: left; border-bottom: 1px solid var(--line); padding: .7rem .8rem; vertical-align: top; }
+    th { background: #eef2f7; }
+    footer { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 1rem; }
+    .kicker { color: var(--blue); font-weight: 800; font-size: clamp(1rem, 1.4vw, 1.25rem); margin-bottom: .6rem; }
+    .subtitle { max-width: 44rem; color: var(--muted); font-size: clamp(1.05rem, 1.6vw, 1.45rem); }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; align-content: start; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; align-content: start; }
+    .panel { background: var(--white); border: 1px solid var(--line); border-radius: 8px; padding: 1rem; }
+    .panel.blue { border-top: 5px solid var(--blue); }
+    .panel.teal { border-top: 5px solid var(--teal); }
+    .panel.amber { border-top: 5px solid var(--amber); }
+    .panel.red { border-top: 5px solid var(--red); }
+    .note { width: 100%; background: #fff7ed; border-left: 6px solid var(--amber); padding: 1rem; font-size: clamp(1rem, 1.45vw, 1.25rem); }
+    .flow { display: grid; grid-template-columns: repeat(5, 1fr); gap: .8rem; align-items: stretch; }
+    .flow .box { background: var(--white); border: 1px solid var(--line); border-radius: 8px; padding: .9rem; min-height: 8rem; }
+    .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .compare .left { border-top: 5px solid var(--blue); }
+    .compare .right { border-top: 5px solid var(--teal); }
+    .metric { display: grid; grid-template-columns: 10rem 1fr; gap: 1rem; padding: .72rem 0; border-bottom: 1px solid var(--line); }
+    .pill-row { display: flex; flex-wrap: wrap; gap: .6rem; }
+    .pill { border: 1px solid var(--line); border-radius: 999px; background: var(--white); padding: .45rem .75rem; font-size: clamp(1rem, 1.2vw, 1.1rem); }
+    .nav { position: fixed; right: 1rem; bottom: 1rem; display: flex; gap: .5rem; z-index: 10; }
+    button { border: 1px solid var(--line); border-radius: 8px; background: var(--white); color: var(--ink); padding: .45rem .72rem; font-size: 1rem; cursor: pointer; }
+    #progress {
+      position: fixed;
+      left: 0;
+      bottom: 0;
+      height: 4px;
+      width: 0;
+      background: linear-gradient(90deg, var(--blue), var(--teal));
+      z-index: 11;
+    }
+    @media (max-width: 860px) {
+      body { overflow: auto; }
+      .slide { min-height: 100vh; height: auto; overflow: auto; }
+      .grid-2, .grid-3, .flow, .compare { grid-template-columns: 1fr; }
+      .metric { grid-template-columns: 1fr; gap: .2rem; }
+    }
+  </style>
+</head>
+<body>
+  <section class="slide active hero">
+    <main>
+      <div class="kicker">LLM 推理性能优化实战</div>
+      <h1>第1章 LLM 推理流程</h1>
+      <p class="subtitle">从一次请求的生命周期出发，建立 prefill、decode、GPU、KV Cache 与性能指标之间的完整认知。</p>
+    </main>
+    <footer><span>建议讲授 60-75 分钟</span><span>1 / 18</span></footer>
+  </section>
+
+  <section class="slide">
+    <header><h2>为什么第一章先讲流程</h2></header>
+    <main class="grid-2">
+      <div class="panel blue"><h3>优化动作必须落到阶段</h3><p>FlashAttention、KV 量化、batching、speculative decoding 解决的问题不同，不能用同一套直觉判断。</p></div>
+      <div class="panel teal"><h3>指标必须回到用户体验</h3><p>TTFT 决定首响，ITL 决定流式输出是否顺滑，TPS 决定系统吞吐，但三者可能互相拉扯。</p></div>
+      <div class="panel amber"><h3>Profiling 需要地图</h3><p>没有生命周期视角时，timeline 上的 kernel、空洞和同步等待很难解释。</p></div>
+      <div class="panel red"><h3>工程问题常跨层出现</h3><p>一次慢请求可能同时包含排队、prefill、KV Cache、decode、采样和网络返回的影响。</p></div>
+    </main>
+    <footer><span>导入：5 分钟</span><span>2 / 18</span></footer>
+  </section>
+
+  <section class="slide">
+    <header><h2>本章 60 分钟节奏</h2></header>
+    <main>
+      <table>
+        <tr><th>时间</th><th>主题</th><th>产出</th></tr>
+        <tr><td>0-5</td><td>在线推理问题</td><td>知道为什么不能只看 TPS</td></tr>
+        <tr><td>5-15</td><td>Transformer 推理回顾</td><td>能讲清自回归循环</td></tr>
+        <tr><td>15-28</td><td>Prefill</td><td>能解释 TTFT 与 prompt 长度</td></tr>
+        <tr><td>28-40</td><td>Decode</td><td>能解释 ITL 与 KV Cache 读取</td></tr>
+        <tr><td>40-50</td><td>GPU / KV Cache 生命周期</td><td>能把显存增长和 kernel 执行串起来</td></tr>
+        <tr><td>50-60</td><td>Demo 与讨论</td><td>能根据指标做初步瓶颈判断</td></tr>
+      </table>
+    </main>
+    <footer><span>课程路线</span><span>3 / 18</span></footer>
+  </section>
+
+  <section class="slide">
+    <header><h2>一次请求的全链路</h2></header>
+    <main class="flow">
+      <div class="box"><h3>1. 输入</h3><p>文本、参数、上下文、停止条件进入服务。</p></div>
+      <div class="box"><h3>2. 排队调度</h3><p>调度器决定何时进入 prefill 或 decode batch。</p></div>
+      <div class="box"><h3>3. Prefill</h3><p>处理完整 prompt，写入 KV Cache，产出首 token logits。</p></div>
+      <div class="box"><h3>4. Decode</h3><p>逐 token 读取和追加 KV Cache，循环生成。</p></div>
+      <div class="box"><h3>5. 返回</h3><p>采样、detokenize、流式发送，直到结束。</p></div>
+    </main>
+    <footer><span>生命周期总览</span><span>4 / 18</span></footer>
+  </section>
+
+  <section class="slide">
+    <header><h2>Transformer 推理最小回顾</h2></header>
+    <main class="grid-2">
+      <div class="panel blue"><h3>模型前向</h3><ul><li>token id 进入 embedding</li><li>多层 attention + MLP</li><li>lm head 输出 logits</li><li>采样器选出下一个 token</li></ul></div>
+      <div class="panel teal"><h3>关键事实</h3><ul><li>decoder-only LLM 是自回归生成</li><li>通常一轮只预测下一个 token</li><li>输出越长，decode 循环越多</li><li>历史上下文通过 KV Cache 复用</li></ul></div>
+    </main>
+    <footer><span>Transformer 回顾：10 分钟</span><span>5 / 18</span></footer>
+  </section>
+
+  <section class="slide">
+    <header><h2>Token 生成循环</h2></header>
+    <main class="grid-2">
+      <pre>prompt tokens
+  -> prefill
+  -> logits
+  -> sample token_1
+  -> decode token_1
+  -> sample token_2
+  -> decode token_2
+  -> ...
+  -> EOS / max_tokens</pre>
+      <div class="panel amber"><h3>讲课重点</h3><p>模型不是一次性生成完整答案，而是重复执行“根据历史预测下一个 token”。这解释了为什么输出长度直接影响总响应时间。</p><p>流式输出体验本质上就是 decode 循环是否稳定。</p></div>
+    </main>
+    <footer><span>自回归生成</span><span>6 / 18</span></footer>
+  </section>
+
+  <section class="slide">
+    <header><h2>Prefill：第一个 token 前发生什么</h2></header>
+    <main class="grid-2">
+      <div class="panel blue"><h3>输入</h3><ul><li>完整 prompt tokens</li><li>position ids / attention mask</li><li>推理参数与 batch 位置</li></ul></div>
+      <div class="panel teal"><h3>输出</h3><ul><li>首 token 的 logits</li><li>每层 prompt 对应的 KV Cache</li><li>后续 decode 的上下文状态</li></ul></div>
+      <div class="note">结论：TTFT 变差时，第一反应是看排队和 prefill；长 prompt 通常会显著拉高首响。</div>
+    </main>
+    <footer><span>Prefill：13 分钟</span><span>7 / 18</span></footer>
+  </section>
+
+  <section class="slide">
+    <header><h2>Prefill 常见是 Compute Bound</h2></header>
+    <main class="grid-3">
+      <div class="panel blue"><h3>计算形态</h3><p>完整序列进入多层 attention 和 MLP，GEMM 与 attention kernel 工作量大。</p></div>
+      <div class="panel teal"><h3>观察信号</h3><p>SM / Tensor Core 利用率高，kernel timeline 中大块计算占主导。</p></div>
+      <div class="panel amber"><h3>优化方向</h3><p>FlashAttention、FlashInfer、算子融合、Tensor Core 利用、减少无效 prompt。</p></div>
+    </main>
+    <footer><span>Prefill 瓶颈</span><span>8 / 18</span></footer>
+  </section>
+
+  <section class="slide">
+    <header><h2>Decode：每个 token 都是一轮循环</h2></header>
+    <main class="grid-2">
+      <div class="panel teal"><h3>每轮输入</h3><ul><li>上一轮生成 token</li><li>历史 KV Cache</li><li>当前 batch 调度结果</li><li>采样参数</li></ul></div>
+      <div class="panel blue"><h3>每轮输出</h3><ul><li>下一个 token logits</li><li>新 token 的 K/V</li><li>流式返回给用户的文本片段</li></ul></div>
+      <div class="note">结论：输出越长，decode 轮数越多；ITL 决定流式输出是否顺滑。</div>
+    </main>
+    <footer><span>Decode：12 分钟</span><span>9 / 18</span></footer>
+  </section>
+
+  <section class="slide">
+    <header><h2>Decode 常见是 Memory Bound</h2></header>
+    <main class="grid-3">
+      <div class="panel teal"><h3>访问模式</h3><p>每步新增 token 很少，但需要读取每层历史 token 的 K/V。</p></div>
+      <div class="panel amber"><h3>观察信号</h3><p>HBM 带宽高，SM 未必打满；上下文越长，ITL 越容易变差。</p></div>
+      <div class="panel blue"><h3>优化方向</h3><p>KV Cache 量化、PagedAttention、cache layout、continuous batching。</p></div>
+    </main>
+    <footer><span>Decode 瓶颈</span><span>10 / 18</span></footer>
+  </section>
+
+  <section class="slide">
+    <header><h2>Prefill 与 Decode 对比</h2></header>
+    <main class="compare">
+      <div class="panel left"><h3>Prefill</h3><ul><li>处理完整 prompt</li><li>写入 prompt 的 KV Cache</li><li>强影响 TTFT</li><li>更容易 compute bound</li><li>长 prompt 影响明显</li></ul></div>
+      <div class="panel right"><h3>Decode</h3><ul><li>逐 token 循环</li><li>读取并追加 KV Cache</li><li>强影响 ITL 和总耗时</li><li>更容易 memory bound</li><li>长输出和长上下文影响明显</li></ul></div>
+    </main>
+    <footer><span>阶段对照</span><span>11 / 18</span></footer>
+  </section>
+
+  <section class="slide">
+    <header><h2>GPU 生命周期视角</h2></header>
+    <main class="grid-2">
+      <div class="panel blue"><h3>Timeline 上会看到</h3><ul><li>prefill 大块 attention / GEMM kernel</li><li>KV Cache 写入</li><li>decode 小步重复 kernel</li><li>采样、同步、等待和空洞</li></ul></div>
+      <div class="panel amber"><h3>不要只看平均利用率</h3><p>平均 GPU utilization 可能掩盖排队、短 kernel、同步等待和 batch 不稳定。后续 profiling 章节会把这些现象放到 timeline 中观察。</p></div>
+    </main>
+    <footer><span>GPU 执行过程：5 分钟</span><span>12 / 18</span></footer>
+  </section>
+
+  <section class="slide">
+    <header><h2>KV Cache 生命周期</h2></header>
+    <main class="flow">
+      <div class="box"><h3>分配</h3><p>请求进入后分配 cache block。</p></div>
+      <div class="box"><h3>写入</h3><p>prefill 写入 prompt 对应 K/V。</p></div>
+      <div class="box"><h3>读取</h3><p>decode 每步读取历史 K/V。</p></div>
+      <div class="box"><h3>追加</h3><p>每个新 token 继续写入 K/V。</p></div>
+      <div class="box"><h3>释放/复用</h3><p>请求结束后释放，或作为 prefix cache 复用。</p></div>
+    </main>
+    <footer><span>KV Cache：5 分钟</span><span>13 / 18</span></footer>
+  </section>
+
+  <section class="slide">
+    <header><h2>KV Cache 显存直觉</h2></header>
+    <main class="grid-2">
+      <pre>KV Cache 显存
+≈ 层数
+× token 数
+× KV hidden 维度
+× 2(K 和 V)
+× dtype bytes</pre>
+      <div class="panel teal"><h3>关键变量</h3><div class="pill-row"><span class="pill">prompt length</span><span class="pill">output length</span><span class="pill">concurrency</span><span class="pill">batch size</span><span class="pill">dtype</span><span class="pill">kv heads</span></div><p style="margin-top:1rem">直觉足够重要：上下文越长、并发越高、dtype 越大，显存越紧张。</p></div>
+    </main>
+    <footer><span>显存增长规律</span><span>14 / 18</span></footer>
+  </section>
+
+  <section class="slide">
+    <header><h2>Compute Bound vs Memory Bound</h2></header>
+    <main>
+      <table>
+        <tr><th>类型</th><th>常见阶段</th><th>信号</th><th>可能动作</th></tr>
+        <tr><td>Compute Bound</td><td>Prefill</td><td>SM / Tensor Core 高，GEMM 或 attention kernel 占主导</td><td>FlashAttention、算子融合、Tensor Core、减少 prompt</td></tr>
+        <tr><td>Memory Bound</td><td>Decode</td><td>HBM 带宽高，上下文越长 ITL 越差</td><td>KV 量化、PagedAttention、cache layout</td></tr>
+        <tr><td>Scheduling Bound</td><td>服务调度</td><td>GPU timeline 有空洞，请求排队明显</td><td>continuous batching、chunked prefill、并发策略</td></tr>
+        <tr><td>Capacity Bound</td><td>长上下文/高并发</td><td>显存限制 batch 或请求失败</td><td>分页、量化、限制长度、模型并行</td></tr>
+      </table>
+    </main>
+    <footer><span>瓶颈判断：8 分钟</span><span>15 / 18</span></footer>
+  </section>
+
+  <section class="slide">
+    <header><h2>Demo：启动真实 vLLM 服务</h2></header>
+    <main class="grid-2">
+      <pre>python3 lesson/lesson-01/ch01/start_vllm.py \
+  --model /home/admin/models/Qwen2.5-0.5B \
+  --served-model-name Qwen/Qwen2.5-0.5B \
+  --host 0.0.0.0 \
+  --port 8000</pre>
+      <div class="panel blue"><h3>观察链路</h3><div class="metric"><strong>Ready</strong><span>服务启动完成</span></div><div class="metric"><strong>API</strong><span>/v1/models 可访问</span></div><div class="metric"><strong>Request</strong><span>等待真实请求进入</span></div><div class="metric"><strong>Model</strong><span>模型开始推理</span></div></div>
+    </main>
+    <footer><span>Demo：10 分钟</span><span>16 / 18</span></footer>
+  </section>
+
+  <section class="slide">
+    <header><h2>课堂练习：发送一次真实请求</h2></header>
+    <main class="grid-2">
+      <pre>python3 lesson/lesson-01/ch01/demo.py \
+  --base-url http://127.0.0.1:8000/v1 \
+  --model Qwen/Qwen2.5-0.5B \
+  --prompt "请解释一次 LLM 在线推理请求从 Prompt 到完整回答的过程。" \
+  --max-tokens 128</pre>
+      <div class="panel teal"><h3>观察返回</h3><div class="metric"><strong>Prompt</strong><span>原始输入被记录</span></div><div class="metric"><strong>Stream</strong><span>逐 token 返回文本</span></div><div class="metric"><strong>Usage</strong><span>输入与输出 token 数</span></div><p style="margin-top:1rem">指标实验放到第 2 章，本章只建立请求生命周期。</p></div>
+    </main>
+    <footer><span>课堂讨论</span><span>17 / 18</span></footer>
+  </section>
+
+  <section class="slide">
+    <header><h2>本章收束：后续章节都回到这张图</h2></header>
+    <main class="grid-2">
+      <div class="panel blue"><h3>今天必须带走</h3><ul><li>prefill 决定首响，decode 决定输出节奏</li><li>KV Cache 是连接两个阶段的关键状态</li><li>compute bound 和 memory bound 要用指标判断</li></ul></div>
+      <div class="panel teal"><h3>下一步会展开</h3><ul><li>性能指标：TTFT、ITL、TPS、P95/P99</li><li>Profiling：nvidia-smi、Nsight、PyTorch Profiler</li><li>优化：attention、cache、batching、decode acceleration</li></ul></div>
+    </main>
+    <footer><span>总结与作业</span><span>18 / 18</span></footer>
+  </section>
+
+  <div id="progress"></div>
+  <div class="nav">
+    <button onclick="go(-1)" title="上一页">←</button>
+    <button onclick="go(1)" title="下一页">→</button>
+    <button onclick="document.documentElement.requestFullscreen()" title="全屏">⛶</button>
+  </div>
+  <script>
+    const slides = [...document.querySelectorAll('.slide')];
+    const progress = document.querySelector('#progress');
+    let index = 0;
+    function show(i) {
+      index = (i + slides.length) % slides.length;
+      slides.forEach((slide, n) => slide.classList.toggle('active', n === index));
+      progress.style.width = `${((index + 1) / slides.length) * 100}%`;
+    }
+    function go(delta) { show(index + delta); }
+    addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowRight' || event.key === 'PageDown' || event.key === ' ') go(1);
+      if (event.key === 'ArrowLeft' || event.key === 'PageUp') go(-1);
+      if (event.key.toLowerCase() === 'f') document.documentElement.requestFullscreen();
+      if (event.key === 'Home') show(0);
+      if (event.key === 'End') show(slides.length - 1);
+    });
+    show(0);
+  </script>
+</body>
+</html>

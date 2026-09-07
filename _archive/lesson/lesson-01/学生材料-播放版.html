@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LLM 推理流程 · 播放版</title>
+<style>
+  :root{
+    --bg:#0d1220; --card:#141b31; --ink:#edf4ff; --dim:#a9b5cc;
+    --p1:#60a5fa; --p2:#22d3ee; --good:#34d399; --warn:#fbbf24; --bad:#fb7185;
+    --line:#26304d; --a:var(--p1);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+    background:radial-gradient(980px 620px at 72% -8%,#1f3a8a 0,transparent 62%),
+      radial-gradient(700px 520px at 8% 105%,#155e75 0,transparent 60%),var(--bg);
+    color:var(--ink); line-height:1.62; overflow:hidden;
+  }
+  .slide{
+    position:fixed; inset:0;
+    display:flex; flex-direction:column; justify-content:center; align-items:center;
+    padding:48px 22px 96px; text-align:center;
+    opacity:0; visibility:hidden; transform:translateY(18px);
+    transition:opacity .38s ease, transform .38s ease;
+    pointer-events:none;
+  }
+  .slide.active{opacity:1;visibility:visible;transform:none;pointer-events:auto}
+  .inner{max-width:760px;width:100%}
+  .wide{max-width:920px}
+  .kicker{color:var(--a);font-weight:900;letter-spacing:3px;font-size:15px;margin-bottom:14px}
+  .emoji{font-size:68px;line-height:1;margin-bottom:18px;display:block}
+  h1{font-size:clamp(32px,8vw,54px);line-height:1.16;margin:6px 0 14px;
+    background:linear-gradient(90deg,var(--p1),var(--p2));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  h2{font-size:clamp(25px,6.2vw,38px);line-height:1.28;margin:4px 0 14px}
+  .big{font-size:clamp(22px,5.6vw,32px);font-weight:900;margin:8px 0;color:var(--ink)}
+  p{color:#dfe8ff;font-size:clamp(18px,4.4vw,22px)}
+  .sub{color:var(--dim)}
+  b,.accentword{color:var(--a)}
+  .eg{
+    background:#11182d;border:1px solid var(--line);border-left:4px solid var(--a);
+    border-radius:12px;padding:15px 17px;margin-top:18px;text-align:left;
+    font-size:clamp(16px,4vw,19px);line-height:1.66;color:#dfe8ff;
+  }
+  .eg .lbl{color:var(--a);font-weight:900;font-size:15px;letter-spacing:1px;display:block;margin-bottom:7px}
+  .demo{border:1px dashed #334064;border-radius:14px;padding:16px;background:#11182d;text-align:left;margin-top:8px}
+  .bubble{border-radius:12px;padding:13px 15px;margin:9px 0;font-size:clamp(16px,4vw,18px);line-height:1.62}
+  .me{background:#203254}
+  .ai{background:#17294a;border-left:3px solid var(--p2)}
+  .code{
+    background:#080d1a;border:1px solid var(--line);border-radius:10px;
+    padding:13px 14px;margin:9px 0;font-family:"SF Mono",Menlo,Consolas,monospace;
+    font-size:clamp(14px,3.5vw,16px);line-height:1.7;color:#cad8ff;text-align:left;
+    white-space:pre;overflow-x:auto;
+  }
+  .code .cm{color:#7e8bad}.code .out{color:var(--warn);font-weight:800}
+  .tbl{width:100%;border-collapse:collapse;margin-top:16px;font-size:clamp(16px,4vw,19px);overflow:hidden;border-radius:12px}
+  .tbl th,.tbl td{border:1px solid var(--line);padding:11px 10px;text-align:center}
+  .tbl th{background:#203254;color:var(--p2);font-weight:900}
+  .tbl td{background:#11182d}
+  .tbl td:first-child{color:var(--dim)}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px}
+  .card{background:#11182d;border:1px solid var(--line);border-radius:14px;padding:16px 14px;text-align:left}
+  .card .ic{font-size:35px;display:block;margin-bottom:5px}
+  .card b{display:block;font-size:clamp(17px,4.2vw,20px);margin-bottom:3px}
+  .card span{color:var(--dim);font-size:clamp(14px,3.5vw,16px)}
+  .qbox{border-radius:16px;padding:22px 20px;border:1px solid;margin-top:6px;text-align:left}
+  .lv{font-size:15px;font-weight:900;letter-spacing:1px;opacity:.9}
+  .qtext{font-size:clamp(24px,6vw,34px);font-weight:900;margin:8px 0;text-align:center}
+  .badge{display:inline-block;font-size:14px;background:var(--good);color:#052e22;padding:3px 11px;border-radius:20px;font-weight:900;margin-top:6px}
+  .flow{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:10px}
+  .step{background:#11182d;border:1px solid var(--line);border-radius:14px;padding:15px 10px;min-height:132px}
+  .step .num{font-weight:900;color:var(--a);font-size:15px;letter-spacing:1px}
+  .step b{display:block;color:var(--ink);font-size:clamp(17px,4vw,20px);margin:6px 0}
+  .step span{color:var(--dim);font-size:clamp(14px,3.5vw,15px)}
+  .compare{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:10px}
+  .side{background:#11182d;border:1px solid var(--line);border-radius:14px;padding:18px;text-align:left}
+  .side h3{font-size:clamp(21px,5vw,28px);margin-bottom:10px;color:var(--a)}
+  .side li{font-size:clamp(16px,4vw,19px);margin:5px 0;color:#dfe8ff}
+  .motto{font-size:clamp(25px,6vw,40px);font-weight:900;margin:10px 0;
+    background:linear-gradient(90deg,var(--p2),var(--good));-webkit-background-clip:text;
+    background-clip:text;color:transparent}
+  button.reveal{margin-top:8px;background:linear-gradient(90deg,var(--p1),var(--p2));
+    color:#06111f;border:0;padding:13px 18px;border-radius:11px;font-size:clamp(15px,3.8vw,17px);
+    font-weight:900;cursor:pointer;width:100%}
+  .answer{display:none;margin-top:12px;border-radius:12px;padding:15px;
+    font-size:clamp(15px,3.8vw,17px);line-height:1.6;background:rgba(251,191,36,.12);border:1px solid var(--warn)}
+  .answer.show{display:block;animation:pop .3s ease}@keyframes pop{from{transform:translateY(6px);opacity:0}to{transform:none;opacity:1}}
+  #bar{position:fixed;top:0;left:0;height:4px;width:0;background:linear-gradient(90deg,var(--p1),var(--p2));transition:width .35s ease;z-index:30}
+  .nav{position:fixed;bottom:0;left:0;right:0;height:72px;z-index:30;
+    display:flex;align-items:center;justify-content:space-between;padding:0 18px;
+    background:linear-gradient(0deg,rgba(13,18,32,.96),transparent)}
+  .nav button{background:#141b31;border:1px solid var(--line);color:var(--ink);
+    width:48px;height:48px;border-radius:50%;font-size:22px;cursor:pointer;display:grid;place-items:center;transition:.15s}
+  .nav button:hover{border-color:var(--p1)}.nav button:disabled{opacity:.3;cursor:default}
+  #cnt{color:var(--dim);font-size:14px;font-weight:800;letter-spacing:1px}
+  .hint{position:fixed;bottom:84px;left:0;right:0;text-align:center;color:#6f7ca2;font-size:13px;z-index:20;animation:bob 1.6s ease-in-out infinite;pointer-events:none}
+  .hint.gone{display:none}@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(4px)}}
+  @media(max-width:760px){.cards,.compare,.flow{grid-template-columns:1fr}.inner{max-width:680px}.slide{padding-top:34px}}
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<section class="slide active" style="--a:var(--p2)">
+  <div class="inner">
+    <span class="emoji">🚀</span>
+    <div class="kicker">LLM 推理性能优化实战 · 第 1 章</div>
+    <h1>LLM 推理流程</h1>
+    <p class="sub">先把一次请求看清楚：<br>它什么时候算、什么时候读显存、什么时候等。</p>
+  </div>
+</section>
+
+<section class="slide" style="--a:var(--warn)">
+  <div class="inner">
+    <span class="emoji">🎯</span>
+    <div class="kicker">今天的目标</div>
+    <h2>不是先调参数，<br>而是先画出地图</h2>
+    <div class="eg"><span class="lbl">一句话</span>后面所有优化都会回到这张地图：<b>请求进入 → Prefill → Decode → KV Cache → 返回 token</b>。</div>
+  </div>
+</section>
+
+<section class="slide" style="--a:var(--p1)">
+  <div class="inner wide">
+    <div class="kicker">60 分钟怎么讲</div>
+    <table class="tbl">
+      <tr><th>时间</th><th>主题</th><th>要拿到的理解</th></tr>
+      <tr><td>0-5</td><td>在线推理问题</td><td>不能只看 TPS</td></tr>
+      <tr><td>5-15</td><td>Transformer 回顾</td><td>自回归生成</td></tr>
+      <tr><td>15-28</td><td>Prefill</td><td>为什么影响 TTFT</td></tr>
+      <tr><td>28-40</td><td>Decode</td><td>为什么影响 ITL</td></tr>
+      <tr><td>40-50</td><td>GPU / KV Cache</td><td>显存和 kernel 怎么串起来</td></tr>
+      <tr><td>50-60</td><td>Demo</td><td>用指标做初步判断</td></tr>
+    </table>
+  </div>
+</section>
+
+<section class="slide" style="--a:var(--bad)">
+  <div class="inner">
+    <span class="emoji">⚠️</span>
+    <div class="kicker">第一个坑</div>
+    <h2>Tokens/s 很高，<br>用户也可能觉得慢</h2>
+    <div class="eg"><span class="lbl">为什么？</span>用户先感受到的是 <b>TTFT</b>：第一个 token 等多久。流式输出时再感受到 <b>ITL</b>：每两个 token 之间卡不卡。</div>
+  </div>
+</section>
+
+<section class="slide" style="--a:var(--p2)">
+  <div class="inner wide">
+    <div class="kicker">一次请求的全链路</div>
+    <h2>从 prompt 到最后一个 token</h2>
+    <div class="flow">
+      <div class="step"><div class="num">01</div><b>输入</b><span>文本和生成参数进入服务</span></div>
+      <div class="step"><div class="num">02</div><b>调度</b><span>决定进入哪个 batch</span></div>
+      <div class="step"><div class="num">03</div><b>Prefill</b><span>处理完整 prompt</span></div>
+      <div class="step"><div class="num">04</div><b>Decode</b><span>逐 token 循环生成</span></div>
+      <div class="step"><div class="num">05</div><b>返回</b><span>采样、解码、流式发送</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" style="--a:var(--good)">
+  <div class="inner">
+    <span class="emoji">🔁</span>
+    <div class="kicker">Transformer 推理真相</div>
+    <h2>LLM 不是一次吐完答案</h2>
+    <p>它通常是一轮预测一个 token，<br>再把这个 token 接回上下文继续预测。</p>
+    <div class="code">prompt -> prefill -> token_1
+token_1 -> decode -> token_2
+token_2 -> decode -> token_3
+...
+直到 EOS / max_tokens / stop words</div>
+  </div>
+</section>
+
+<section class="slide" style="--a:var(--p1)">
+  <div class="inner">
+    <div class="qbox" style="border-color:var(--p1);background:rgba(96,165,250,.10)">
+      <div class="lv" style="color:var(--p1)">第 1 个关键词</div>
+      <div class="qtext">Prefill</div>
+      <div class="eg" style="--a:var(--p1)">把<b>完整 prompt</b>一次性送进模型，计算上下文状态，写入 KV Cache，并得到第一个要采样的 token 的 logits。</div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" style="--a:var(--warn)">
+  <div class="inner">
+    <span class="emoji">⏱️</span>
+    <div class="kicker">Prefill 影响什么</div>
+    <h2>首 token 慢，<br>通常先看 TTFT</h2>
+    <div class="eg"><span class="lbl">TTFT = Time To First Token</span>第一个 token 出来前，要经过排队、tokenization、prefill、采样和返回。长 prompt 往往先把 TTFT 拉高。</div>
+  </div>
+</section>
+
+<section class="slide" style="--a:var(--p1)">
+  <div class="inner">
+    <span class="emoji">🧮</span>
+    <div class="kicker">Prefill 的瓶颈直觉</div>
+    <h2>它更像一大块计算</h2>
+    <div class="cards">
+      <div class="card"><span class="ic">🔥</span><b>常见 Compute Bound</b><span>attention / GEMM 工作量大</span></div>
+      <div class="card"><span class="ic">📈</span><b>看 SM / Tensor Core</b><span>利用率高时说明 GPU 在认真算</span></div>
+      <div class="card"><span class="ic">📏</span><b>Prompt 越长</b><span>TTFT 越容易变差</span></div>
+      <div class="card"><span class="ic">⚙️</span><b>优化方向</b><span>FlashAttention、算子融合、减少无效上下文</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" style="--a:var(--p2)">
+  <div class="inner">
+    <div class="qbox" style="border-color:var(--p2);background:rgba(34,211,238,.10)">
+      <div class="lv" style="color:var(--p2)">第 2 个关键词</div>
+      <div class="qtext">Decode</div>
+      <div class="eg" style="--a:var(--p2)">第一个 token 之后，模型开始<b>逐 token 生成</b>。每一步读取历史 KV Cache，追加新 token 的 K/V，再采样下一个 token。</div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" style="--a:var(--good)">
+  <div class="inner">
+    <span class="emoji">💬</span>
+    <div class="kicker">Decode 影响什么</div>
+    <h2>输出卡不卡，<br>重点看 ITL</h2>
+    <div class="eg"><span class="lbl">ITL = Inter-Token Latency</span>相邻 token 的间隔决定流式输出是否顺滑。输出越长，decode 循环越多，总耗时越容易增长。</div>
+  </div>
+</section>
+
+<section class="slide" style="--a:var(--p2)">
+  <div class="inner">
+    <span class="emoji">🧱</span>
+    <div class="kicker">Decode 的瓶颈直觉</div>
+    <h2>它更像反复读历史</h2>
+    <div class="cards">
+      <div class="card"><span class="ic">📚</span><b>读取 KV Cache</b><span>每层都要看历史上下文</span></div>
+      <div class="card"><span class="ic">🚰</span><b>常见 Memory Bound</b><span>HBM 带宽容易成为限制</span></div>
+      <div class="card"><span class="ic">🧵</span><b>调度很关键</b><span>batch 太小吃不满，太大又可能等</span></div>
+      <div class="card"><span class="ic">🧊</span><b>优化方向</b><span>KV 量化、PagedAttention、Continuous Batching</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" style="--a:var(--warn)">
+  <div class="inner wide">
+    <div class="kicker">核心对比</div>
+    <div class="compare">
+      <div class="side" style="--a:var(--p1)">
+        <h3>Prefill</h3>
+        <ul><li>处理完整 prompt</li><li>写入 prompt 的 KV Cache</li><li>强影响 TTFT</li><li>更容易 compute bound</li></ul>
+      </div>
+      <div class="side" style="--a:var(--p2)">
+        <h3>Decode</h3>
+        <ul><li>逐 token 循环</li><li>读取并追加 KV Cache</li><li>强影响 ITL</li><li>更容易 memory bound</li></ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" style="--a:var(--good)">
+  <div class="inner wide">
+    <div class="kicker">KV Cache 生命周期</div>
+    <h2>它是 prefill 和 decode 之间的桥</h2>
+    <div class="flow">
+      <div class="step"><div class="num">01</div><b>分配</b><span>请求进入后拿 cache block</span></div>
+      <div class="step"><div class="num">02</div><b>写入</b><span>prefill 写入 prompt K/V</span></div>
+      <div class="step"><div class="num">03</div><b>读取</b><span>decode 每步读取历史 K/V</span></div>
+      <div class="step"><div class="num">04</div><b>追加</b><span>新 token 继续写入 K/V</span></div>
+      <div class="step"><div class="num">05</div><b>释放</b><span>结束后释放或复用</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" style="--a:var(--good)">
+  <div class="inner">
+    <span class="emoji">💾</span>
+    <div class="kicker">显存直觉</div>
+    <h2>上下文越长，<br>KV Cache 越大</h2>
+    <div class="code">KV Cache 显存
+≈ 层数 × token 数 × KV hidden 维度
+× 2(K 和 V) × dtype bytes</div>
+    <p class="sub">影响最大的一般是：上下文长度、并发、dtype、KV heads。</p>
+  </div>
+</section>
+
+<section class="slide" style="--a:var(--warn)">
+  <div class="inner">
+    <span class="emoji">🧭</span>
+    <div class="kicker">瓶颈判断</div>
+    <h2>慢了以后，先别急着开优化</h2>
+    <div class="cards">
+      <div class="card"><span class="ic">🧮</span><b>Compute Bound</b><span>SM / Tensor Core 高，prefill 常见</span></div>
+      <div class="card"><span class="ic">🚰</span><b>Memory Bound</b><span>HBM 带宽高，decode 常见</span></div>
+      <div class="card"><span class="ic">🚦</span><b>Scheduling Bound</b><span>timeline 有空洞，请求在等</span></div>
+      <div class="card"><span class="ic">📦</span><b>Capacity Bound</b><span>显存限制 batch 或上下文</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" style="--a:var(--p2)">
+  <div class="inner">
+    <div class="kicker">现场 Demo</div>
+    <h2>启动一个真实 vLLM 服务</h2>
+    <div class="demo">
+      <div class="bubble me">🙋 我：先把 OpenAI 兼容接口跑起来，再用客户端脚本发一次真实请求。</div>
+      <div class="code">python3 lesson/lesson-01/ch01/start_vllm.py \
+  --model /home/admin/models/Qwen2.5-0.5B \
+  --served-model-name Qwen/Qwen2.5-0.5B \
+  --host 0.0.0.0 \
+  --port 8000</div>
+      <button class="reveal" onclick="document.getElementById('demoAns').classList.add('show')">▶️ 服务启动后先看什么？</button>
+      <div class="answer" id="demoAns">确认服务 ready，然后检查 <b>/v1/models</b> 是否可访问；本章先建立“请求能进服务、模型能流式输出”的链路。</div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" style="--a:var(--p1)">
+  <div class="inner">
+    <span class="emoji">🔬</span>
+    <div class="kicker">课堂练习 1</div>
+    <h2>发送一次流式请求</h2>
+    <div class="code">python3 lesson/lesson-01/ch01/demo.py \
+  --base-url http://127.0.0.1:8000/v1 \
+  --model Qwen/Qwen2.5-0.5B \
+  --prompt "请解释一次 LLM 在线推理请求从 Prompt 到完整回答的过程。" \
+  --max-tokens 128</div>
+    <div class="eg"><span class="lbl">观察问题</span>脚本是否打印了原始 prompt？是否收到了第一个流式 chunk？后续 chunk 是否持续返回？</div>
+  </div>
+</section>
+
+<section class="slide" style="--a:var(--good)">
+  <div class="inner">
+    <span class="emoji">🧪</span>
+    <div class="kicker">课堂练习 2</div>
+    <h2>把输出对应到生命周期</h2>
+    <div class="cards">
+      <div class="card"><span class="ic">📝</span><b>Prompt</b><span>请求进入服务，输入先被模型处理</span></div>
+      <div class="card"><span class="ic">⚡</span><b>First chunk</b><span>首个返回片段对应 prefill 之后的开始输出</span></div>
+      <div class="card"><span class="ic">🔁</span><b>Stream chunks</b><span>后续片段对应 decode 持续生成</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" style="--a:var(--bad)">
+  <div class="inner">
+    <span class="emoji">🚫</span>
+    <div class="kicker">常见误区</div>
+    <h2>别用一个数字判断优化成败</h2>
+    <div class="eg"><span class="lbl">三个典型误区</span>GPU 利用率高不等于体验好；TPS 高不等于首响好；FlashAttention 也解决不了所有慢。</div>
+  </div>
+</section>
+
+<section class="slide" style="--a:var(--good)">
+  <div class="inner">
+    <span class="emoji">⭐</span>
+    <div class="kicker">记住这句</div>
+    <div class="motto">Prefill 看首响 · Decode 看节奏 · KV Cache 看显存</div>
+    <p style="margin-top:18px">后续所有章节，都可以放回这张图里理解。</p>
+    <p class="sub" style="margin-top:8px">先定位阶段，再判断瓶颈，最后选择优化动作。</p>
+  </div>
+</section>
+
+<div class="hint" id="hint">点击屏幕 / → 翻页</div>
+
+<div class="nav">
+  <button id="prev" aria-label="上一页">‹</button>
+  <span id="cnt">1 / 21</span>
+  <button id="next" aria-label="下一页">›</button>
+</div>
+
+<script>
+  const slides=[...document.querySelectorAll('.slide')];
+  const bar=document.getElementById('bar');
+  const cnt=document.getElementById('cnt');
+  const prevBtn=document.getElementById('prev');
+  const nextBtn=document.getElementById('next');
+  const hint=document.getElementById('hint');
+  let i=0;
+
+  function show(n){
+    i=Math.max(0,Math.min(slides.length-1,n));
+    slides.forEach((s,k)=>s.classList.toggle('active',k===i));
+    bar.style.width=((i+1)/slides.length*100)+'%';
+    cnt.textContent=(i+1)+' / '+slides.length;
+    prevBtn.disabled=i===0;
+    nextBtn.disabled=i===slides.length-1;
+  }
+  function next(){ if(i<slides.length-1) show(i+1); }
+  function prev(){ if(i>0) show(i-1); }
+
+  nextBtn.addEventListener('click',e=>{e.stopPropagation();next();});
+  prevBtn.addEventListener('click',e=>{e.stopPropagation();prev();});
+
+  document.addEventListener('keydown',e=>{
+    if(['ArrowRight','ArrowDown',' ','Enter'].includes(e.key)){e.preventDefault();next();}
+    if(['ArrowLeft','ArrowUp'].includes(e.key)){e.preventDefault();prev();}
+  });
+
+  document.body.addEventListener('click',e=>{
+    if(e.target.closest('a,button,.nav')) return;
+    next();
+  });
+
+  let x0=null;
+  document.addEventListener('touchstart',e=>{x0=e.touches[0].clientX;},{passive:true});
+  document.addEventListener('touchend',e=>{
+    if(x0===null) return;
+    const dx=e.changedTouches[0].clientX-x0;
+    if(Math.abs(dx)>50){ dx<0?next():prev(); }
+    x0=null;
+  },{passive:true});
+
+  function hideHint(){ hint.classList.add('gone'); }
+  ['click','keydown','touchend'].forEach(ev=>document.addEventListener(ev,hideHint,{once:true}));
+
+  show(0);
+</script>
+</body>
+</html>

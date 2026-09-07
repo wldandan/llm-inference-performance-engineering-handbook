@@ -7,16 +7,10 @@ from pathlib import Path
 FIGURE_DIR = Path(__file__).parent / "figures"
 SVG_NS = "http://www.w3.org/2000/svg"
 EXPECTED_FIGURES = {
-    "fig01-01_request_lifecycle_overview.svg": "第一个请求与生命周期总览",
-    "fig01-02_gateway_request_entry.svg": "Gateway 请求入口",
-    "fig01-03_queue_scheduler.svg": "Queue 与 Scheduler",
-    "fig01-04_prefill_position.svg": "Prefill 在生命周期中的位置",
-    "fig01-05_first_token_streaming.svg": "首个 token 与流式返回",
-    "fig01-06_decode_loop.svg": "Decode Loop",
-    "fig01-07_kv_cache_lifecycle.svg": "KV Cache 生命周期",
-    "fig01-08_finish_cleanup.svg": "请求结束与资源回收",
-    "fig01-09_demo_field_mapping.svg": "Demo 字段映射到生命周期",
-    "fig01-10_lifecycle_boundaries.svg": "本章与后续章节边界",
+    "fig01-01_client_service_observation.svg": "一次流式请求的两个视角",
+    "fig01-02_first_service_runbook.svg": "启动服务并完成第一次调用",
+    "fig01-03_demo_observation_mapping.svg": "Demo 字段映射到客户端观察点",
+    "fig01-04_chapter_boundary.svg": "第 1 章只负责跑通与观察",
 }
 
 
@@ -59,6 +53,29 @@ class FigureSystemTests(unittest.TestCase):
                 note_source = note.read_text(encoding="utf-8")
                 self.assertIn("来源段落", note_source)
                 self.assertIn("关键结论", note_source)
+
+    def test_overview_separates_client_observations_from_server_preview(self):
+        source = (
+            FIGURE_DIR / "fig01-01_client_service_observation.svg"
+        ).read_text(encoding="utf-8")
+        for label in ["客户端观察", "服务内部", "首个 chunk", "持续流式返回"]:
+            self.assertIn(label, source)
+        self.assertNotIn("Gateway", source)
+
+    def test_chapter_uses_four_continuous_figures_without_mechanism_sections(self):
+        chapter_source = (Path(__file__).parent / "chapter01.md").read_text(
+            encoding="utf-8"
+        )
+        image_links = re.findall(r"!\[[^\]]*\]\((figures/[^)]+\.svg)\)", chapter_source)
+        self.assertEqual(
+            image_links,
+            [f"figures/{filename}" for filename in EXPECTED_FIGURES],
+        )
+        captions = re.findall(r"图1-(\d+)[：:]", chapter_source)
+        self.assertEqual(captions, ["1", "2", "3", "4"])
+        for heading in ["Gateway", "Queue", "Prefill", "Decode", "KV Cache"]:
+            self.assertNotRegex(chapter_source, rf"(?m)^##\s+1\.\d+\s+{heading}")
+        self.assertIn("本章不把客户端观察值直接归因到某个服务端阶段", chapter_source)
 
 
 if __name__ == "__main__":

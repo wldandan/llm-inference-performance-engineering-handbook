@@ -27,6 +27,10 @@ REQUIRED_TEMPLATE_A_MARKERS = [
     "本章总结",
 ]
 
+# Introductory chapters may use fewer, more purposeful figures. Other chapters
+# keep the project's default ten-figure contract until their storyboard changes.
+EXPECTED_FIGURE_COUNTS = {1: 4}
+
 IMAGE_RE = re.compile(r"!\[[^\]]*]\((figures/[^)]+\.svg)\)")
 CAPTION_RE = re.compile(r"图(\d+)-(\d+)[：:]")
 SECTION_RE = re.compile(r"^##\s+\d+\.\d+\s+", re.MULTILINE)
@@ -74,9 +78,13 @@ def validate_chapter(root: Path, chapter: int) -> list[str]:
         if marker not in text:
             errors.append(f"{chapter_file}: missing teaching case marker `{marker}`")
 
+    expected_figure_count = EXPECTED_FIGURE_COUNTS.get(chapter, 10)
     image_links = IMAGE_RE.findall(text)
-    if len(image_links) != 10:
-        errors.append(f"{chapter_file}: expected 10 SVG image links, found {len(image_links)}")
+    if len(image_links) != expected_figure_count:
+        errors.append(
+            f"{chapter_file}: expected {expected_figure_count} SVG image links, "
+            f"found {len(image_links)}"
+        )
 
     for link in image_links:
         target = chapter_path / link
@@ -87,17 +95,21 @@ def validate_chapter(root: Path, chapter: int) -> list[str]:
 
     captions = [(int(ch), int(idx)) for ch, idx in CAPTION_RE.findall(text)]
     own_captions = [idx for ch, idx in captions if ch == chapter]
-    expected = list(range(1, 11))
+    expected = list(range(1, expected_figure_count + 1))
     if own_captions != expected:
         errors.append(
-            f"{chapter_file}: expected captions 图{chapter}-1..图{chapter}-10, "
+            f"{chapter_file}: expected captions 图{chapter}-1.."
+            f"图{chapter}-{expected_figure_count}, "
             f"found {own_captions}"
         )
 
     if figures_dir.exists():
         svgs = sorted(figures_dir.glob(f"fig{chapter:02d}-*.svg"))
-        if len(svgs) != 10:
-            errors.append(f"{figures_dir}: expected 10 SVG files, found {len(svgs)}")
+        if len(svgs) != expected_figure_count:
+            errors.append(
+                f"{figures_dir}: expected {expected_figure_count} SVG files, "
+                f"found {len(svgs)}"
+            )
         for svg in svgs:
             validate_svg(svg, errors)
 

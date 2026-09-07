@@ -1,0 +1,51 @@
+import importlib.util
+import tempfile
+import unittest
+from pathlib import Path
+
+
+SCRIPT_PATH = Path(__file__).with_name("validate_part.py")
+SPEC = importlib.util.spec_from_file_location("validate_part", SCRIPT_PATH)
+validate_part = importlib.util.module_from_spec(SPEC)
+assert SPEC.loader is not None
+SPEC.loader.exec_module(validate_part)
+
+
+class ValidatePartTests(unittest.TestCase):
+    def test_chapter_one_accepts_four_purposeful_figures(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            chapter_dir = root / "chapter01"
+            figures_dir = chapter_dir / "figures"
+            figures_dir.mkdir(parents=True)
+            (chapter_dir / "review.md").write_text("# Review\n", encoding="utf-8")
+            (chapter_dir / "storyboard.md").write_text("# Storyboard\n", encoding="utf-8")
+
+            links = []
+            captions = []
+            for index in range(1, 5):
+                filename = f"fig01-{index:02d}_purposeful.svg"
+                (figures_dir / filename).write_text(
+                    '<svg xmlns="http://www.w3.org/2000/svg"/>', encoding="utf-8"
+                )
+                links.append(f"![图](figures/{filename})")
+                captions.append(f"图1-{index}：图标题。")
+
+            sections = "\n".join(f"## 1.{index} 小节" for index in range(6))
+            chapter_text = "\n".join(
+                [
+                    "# Chapter 1",
+                    "学习目标 核心问题 Demo 本章总结",
+                    sections,
+                    "课堂案例 补充案例 A 补充案例 B",
+                    *links,
+                    *captions,
+                ]
+            )
+            (chapter_dir / "chapter01.md").write_text(chapter_text, encoding="utf-8")
+
+            self.assertEqual(validate_part.validate_chapter(root, 1), [])
+
+
+if __name__ == "__main__":
+    unittest.main()

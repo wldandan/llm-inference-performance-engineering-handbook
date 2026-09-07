@@ -20,7 +20,7 @@
 - [x] 默认模型支持 Chat Completions。
 - [x] 启动脚本使用当前 vLLM 官方 `vllm serve` 接口。
 - [x] Part 1 导读反映新版 7 章结构及 Core / Bridge 分层。
-- [x] Review、Storyboard、10 张 v2 SVG 与新版章节目标一致，每张图均有制作说明。
+- [x] Review、Storyboard、4 张目的明确的 v2 SVG 与新版章节目标一致，每张图均有制作说明。
 - [x] 单元测试、插图视觉契约测试、干运行、章节结构校验、SVG 解析和原尺寸渲染检查通过。
 - [ ] 在课程目标 GPU 环境完成服务启动、模型加载和流式请求验证。
 
@@ -30,7 +30,8 @@
 2. 客户端正确计算 TTFT、ITL、总延迟和输出吞吐。
 3. 默认模型为 `Qwen/Qwen2.5-0.5B-Instruct`。
 4. 启动命令以 `vllm serve <model>` 开头。
-5. 章节图片链接存在、图号连续、必要章节结构完整。
+5. 章节的 4 张图片链接存在、图号连续、必要章节结构完整。
+6. 开篇图明确区分客户端观察与服务内部过程，不把 chunk 等同于 token。
 
 ## Task CH02：Inference Lifecycle
 

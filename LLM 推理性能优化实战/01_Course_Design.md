@@ -1,4 +1,6 @@
-# LLM Performance Engineering 课程设计（Course Design）
+# 《LLM 推理性能工程实战》课程设计（v1.0）
+
+> 副标题：从模型原理、性能分析到 Serving 与 Agent 优化
 
 > **文档职责：说明为什么这样设计课程，以及整门课程采用什么统一方法。**  
 > 本文档不展开 Part / Chapter 目录，也不规定每章的具体写作格式；课程内容见 `02_Course_Outline.md`，章节编写规范见 `03_Course_Template.md`。
@@ -236,3 +238,65 @@ Course Template（How）
 - Workshop 13 个技术点的难度分级（2026-09-03 已全部铺开草案，但预期现象都还只是定性描述，缺具体指标阈值，见 `workshops/README.md` 的"剩余待做"）
 - 考核方式和结课标准
 - Instructor Guide、PPT 和实验仓库的具体交付规格
+
+## 8. v1.0 目标用户与交付目标
+
+### 8.1 目标用户
+
+核心用户是后端工程师、Agent 工程师、AI 应用工程师和 MLOps / 平台工程师。课程不要求学员具备 CUDA 编程、GPU 微架构或分布式训练背景。
+
+### 8.2 课程目标
+
+课程结束后，核心用户应能够：
+
+- 启动并调用一个 LLM 服务；
+- 解释 Transformer 推理、Prefill、Decode 和 KV Cache；
+- 设计可重复的性能 Benchmark；
+- 使用指标和 Profiling 定位 Queue、Compute、Memory 或 Scheduling 瓶颈；
+- 完成常见的单 GPU 推理优化；
+- 分析 RAG / Agent 工作负载对延迟、吞吐和成本的影响；
+- 为 LLM 服务加入限流、超时、缓存、观测和回归检查；
+- 输出一份可复核的性能报告。
+
+平台工程师和基础设施工程师可在 Advanced Track 中进一步学习 GPU Runtime、多 GPU、NCCL、MoE、Expert Parallel 和 PD Disaggregation。
+
+### 8.3 两类交付物
+
+课程必须同时交付：
+
+1. **文字版教程**：用统一的“概念 → 系统位置 → 性能问题 → 分析方法 → 优化方法 → 验证结果”结构解释 30 章内容。
+2. **可运行 Demo**：每个核心能力至少有一个可执行实验，包含环境、Baseline、压测、优化配置、重跑、指标对比和 Trade-off。
+
+## 9. v1.0 学习路径
+
+### 9.1 Core Track
+
+面向后端和 Agent 工程师，主线为：
+
+```text
+第一个服务 → 推理原理 → 性能测量 → 单 GPU 优化
+→ Serving → RAG / Agent → 容量与生产实践 → 综合项目
+```
+
+### 9.2 Advanced Track
+
+面向平台和基础设施工程师，重点深入：
+
+- Chapter 5 的 GPU 性能模型；
+- Chapter 9、13、17、18 的 Profiling 和 Runtime 细节；
+- Chapter 28 的 Multi-GPU Inference；
+- Chapter 29 的 MoE、Expert Parallel 与 PD Disaggregation。
+
+Advanced 内容不应成为 Core Track 的前置门槛。
+
+## 10. v1.0 课程完成标准
+
+课程 v1.0 只有在以下条件同时满足时才算完成：
+
+- 30 章正文与课程大纲一致；
+- RAG 性能工程和 Agent 性能工程有独立章节；
+- Core Demo 可以在指定单卡环境中运行；
+- Advanced Demo 明确多卡 / 多机前置条件；
+- 每个核心 Demo 都有 Baseline、优化后结果和指标解释；
+- Final Project 同时提供 Core 和 Advanced 两条路线；
+- 课程环境、版本、作业和验收标准已文档化。

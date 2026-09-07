@@ -1,5 +1,7 @@
 # LLM Performance Engineering 课程模板（Course Templates）
 
+> v1.0 补充：所有章节采用分层交付。Core 内容服务后端 / Agent 工程师；Advanced 内容服务平台 / 基础设施工程师，不要求 Core 学员完成全部 Advanced 实验。
+
 > **文档职责：规定不同类型章节应该如何开发。**
 
 为了保证课程结构统一，同时避免所有章节机械套用同一种结构，课程采用三类章节模板：
@@ -7,6 +9,32 @@
 - Template A：基础理论与分析章节
 - Template B：技术专题章节或技术专题小节
 - Template C：综合实践章节
+
+## 0. v1.0 分层章节结构
+
+每章在选择 Template A / B / C 后，还需要明确以下层级：
+
+### Core
+
+- 目标用户：后端工程师、Agent 工程师、AI 应用工程师
+- 目标：理解原理、完成基线、定位瓶颈、运行核心 Demo
+- 结果：能够将方法迁移到 RAG、Agent 或普通 LLM 服务
+
+### Advanced
+
+- 目标用户：平台工程师、基础设施工程师、推理引擎工程师
+- 目标：深入 GPU Runtime、多 GPU、通信、分布式缓存和容量规划
+- 结果：能够设计和分析大规模推理基础设施
+
+### 每章必备的交付字段
+
+1. Core 学习目标；
+2. Advanced 深入方向（如适用）；
+3. Core Demo 或实验；
+4. 运行环境与版本；
+5. Baseline、指标和预期现象；
+6. 优化后结果与 Trade-off；
+7. Core / Advanced 学习检查清单。
 
 课程统一性能分析方法见 `01_Course_Design.md`；具体 Part / Chapter 见 `02_Course_Outline.md`。
 

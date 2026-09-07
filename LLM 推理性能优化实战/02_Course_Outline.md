@@ -1,4 +1,6 @@
-# LLM Performance Engineering：面向推理系统的性能优化实战
+# LLM Performance Engineering：面向推理系统的性能优化实战（历史大纲）
+
+> v1.0 权威大纲已迁移至 [`02_Course_Outline_v1.0.md`](02_Course_Outline_v1.0.md)。本文件暂作历史版本保留，后续正文重构以 v1.0 大纲为准。
 
 > **核心理念：理解推理系统 → 分析性能问题 → 优化系统 → 工程实践**
 

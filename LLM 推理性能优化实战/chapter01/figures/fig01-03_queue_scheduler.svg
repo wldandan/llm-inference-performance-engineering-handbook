@@ -1,20 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
-  <rect width="1280" height="720" fill="#fff"/>
-  <text x="64" y="72" font-family="Arial, sans-serif" font-size="34" fill="#111">Queue 与 Scheduler</text>
-  <g fill="none" stroke="#222" stroke-width="3">
-    <rect x="90" y="180" width="210" height="100" rx="8"/>
-    <rect x="390" y="180" width="210" height="100" rx="8"/>
-    <rect x="690" y="180" width="210" height="100" rx="8"/>
-    <rect x="990" y="180" width="200" height="100" rx="8"/>
-    <path d="M300 230h90M600 230h90M900 230h90"/>
-    <rect x="255" y="400" width="770" height="92" rx="8" stroke-dasharray="10 8"/>
-  </g>
-  <g font-family="Arial, sans-serif" fill="#111" text-anchor="middle">
-    <text x="195" y="240" font-size="22">Step A</text>
-    <text x="495" y="240" font-size="22">Step B</text>
-    <text x="795" y="240" font-size="22">Step C</text>
-    <text x="1090" y="240" font-size="22">Step D</text>
-    <text x="640" y="455" font-size="24">队列等待是生命周期的一部分</text>
-  </g>
-  <text x="64" y="630" font-family="Arial, sans-serif" font-size="24" fill="#111">Key Takeaway: 队列等待是生命周期的一部分</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="fig-title fig-desc" data-figure-system="chapter01-v2" fill="#0F172A">
+  <title id="fig-title">图 1-3 Queue 与 Scheduler</title><desc id="fig-desc">展示多个请求先进入等待队列，Scheduler 根据当前执行机会选择请求，随后才交给模型 Worker 计算。</desc>
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0L10 5L0 10Z" fill="#334155"/></marker><style>
+    text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}.k{font-size:14px;font-weight:700;letter-spacing:2px;fill:#64748B}.t{font-size:32px;font-weight:750}.sub{font-size:16px;fill:#64748B}.panel{fill:#FFFFFF;stroke:#CBD5E1;stroke-width:1.8}.dark{fill:#0F172A}.h{font-size:20px;font-weight:750}.hl{font-size:20px;font-weight:750;fill:#FFFFFF}.s{font-size:14px;fill:#64748B}.sl{font-size:14px;fill:#CBD5E1}.req{fill:#F1F5F9;stroke:#CBD5E1;stroke-width:1.3}.rh{font-size:16px;font-weight:700}.flow{fill:none;stroke:#334155;stroke-width:2.5;marker-end:url(#arrow)}.wait{fill:#E2E8F0}.waitt{font-size:14px;font-weight:700;fill:#475569}.take{fill:#0F172A}.tl{font-size:14px;font-weight:700;letter-spacing:1px;fill:#CBD5E1}.tv{font-size:19px;font-weight:650;fill:#FFFFFF}
+  </style></defs><rect width="1280" height="720" fill="#F8FAFC"/><text class="k" x="56" y="46">WAIT BEFORE COMPUTE · 03</text><text class="t" x="56" y="84">Queue 与 Scheduler：请求到达不等于立即执行</text><text class="sub" x="56" y="114">当执行资源忙碌时，请求先等待；Scheduler 再决定谁获得下一次执行机会</text>
+  <g transform="translate(56 194)"><rect class="panel" width="226" height="352" rx="20"/><text class="h" x="24" y="42">到达的请求</text><text class="s" x="24" y="70">arrival order</text><rect class="req" x="24" y="104" width="178" height="58" rx="12"/><text class="rh" x="113" y="140" text-anchor="middle">Request A</text><rect class="req" x="24" y="180" width="178" height="58" rx="12"/><text class="rh" x="113" y="216" text-anchor="middle">Request B</text><rect class="req" x="24" y="256" width="178" height="58" rx="12"/><text class="rh" x="113" y="292" text-anchor="middle">Request C</text></g>
+  <path class="flow" d="M282 370H342"/><path d="M342 370l-11 -7v14z" fill="#334155"/>
+  <g transform="translate(348 194)"><rect class="panel" width="388" height="352" rx="20"/><text class="h" x="24" y="42">Waiting Queue</text><text class="s" x="24" y="70">尚未开始模型 forward</text><rect class="req" x="30" y="112" width="328" height="64" rx="12"/><text class="rh" x="54" y="151">1</text><text class="rh" x="104" y="151">Request A</text><rect class="req" x="30" y="194" width="328" height="64" rx="12"/><text class="rh" x="54" y="233">2</text><text class="rh" x="104" y="233">Request B</text><rect class="req" x="30" y="276" width="328" height="50" rx="12"/><text class="rh" x="54" y="308">3</text><text class="rh" x="104" y="308">Request C</text></g>
+  <path class="flow" d="M736 370H796"/><path d="M796 370l-11 -7v14z" fill="#334155"/>
+  <g transform="translate(802 254)"><rect class="dark" width="190" height="232" rx="20"/><text class="hl" x="95" y="58" text-anchor="middle" fill="#FFFFFF">Scheduler</text><text class="sl" x="95" y="88" text-anchor="middle" fill="#CBD5E1">查看活跃请求</text><text class="sl" x="95" y="114" text-anchor="middle" fill="#CBD5E1">选择下一批执行</text><rect class="wait" x="28" y="150" width="134" height="48" rx="12"/><text class="waitt" x="95" y="180" text-anchor="middle">select A + B</text></g>
+  <path class="flow" d="M992 370H1048"/><path d="M1048 370l-11 -7v14z" fill="#334155"/>
+  <g transform="translate(1054 254)"><rect class="panel" width="170" height="232" rx="20"/><text class="h" x="85" y="58" text-anchor="middle">Worker</text><text class="s" x="85" y="88" text-anchor="middle">模型计算</text><text class="s" x="85" y="114" text-anchor="middle">A + B 执行</text><rect class="wait" x="24" y="150" width="122" height="48" rx="12"/><text class="waitt" x="85" y="180" text-anchor="middle">C 继续等待</text></g>
+  <rect class="take" x="56" y="642" width="1168" height="54" rx="14"/><text class="tl" x="80" y="675" fill="#CBD5E1">关键结论</text><text class="tv" x="184" y="676" fill="#FFFFFF">队列等待是请求生命周期的一部分，但还不是模型计算。</text>
 </svg>

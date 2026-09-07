@@ -1,0 +1,65 @@
+import re
+import unittest
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+
+FIGURE_DIR = Path(__file__).parent / "figures"
+SVG_NS = "http://www.w3.org/2000/svg"
+EXPECTED_FIGURES = {
+    "fig02-01_request_lifecycle_timeline.svg": "推理请求生命周期与关键时间点",
+    "fig02-02_task_call_request.svg": "业务任务、LLM 调用与推理请求",
+    "fig02-03_normalized_state_machine.svg": "归一化请求状态机",
+    "fig02-04_queue_schedule_boundary.svg": "Queue 与首次调度的边界",
+    "fig02-05_prefill_first_token.svg": "Prefill 与首 token 的边界",
+    "fig02-06_decode_steps_kv_growth.svg": "Decode step 与 KV Cache 增长",
+    "fig02-07_server_client_observation.svg": "服务端事件与客户端观测",
+    "fig02-08_terminal_cleanup.svg": "三类终态与资源清理",
+    "fig02-09_demo_event_report.svg": "生命周期事件生成阶段报告",
+    "fig02-10_chapter_boundary.svg": "Chapter 2 与后续章节边界",
+}
+
+
+class FigureSystemTests(unittest.TestCase):
+    def test_figure_set_is_complete(self):
+        self.assertEqual(
+            set(EXPECTED_FIGURES),
+            {path.name for path in FIGURE_DIR.glob("*.svg")},
+        )
+
+    def test_every_figure_uses_v2_visual_contract(self):
+        for filename, expected_title in EXPECTED_FIGURES.items():
+            with self.subTest(filename=filename):
+                path = FIGURE_DIR / filename
+                source = path.read_text(encoding="utf-8")
+                root = ET.fromstring(source)
+                self.assertEqual(root.attrib.get("width"), "1280")
+                self.assertEqual(root.attrib.get("height"), "720")
+                self.assertEqual(root.attrib.get("viewBox"), "0 0 1280 720")
+                self.assertEqual(root.attrib.get("data-figure-system"), "chapter02-v2")
+                self.assertIn("aria-labelledby", root.attrib)
+
+                title = root.find(f"{{{SVG_NS}}}title")
+                description = root.find(f"{{{SVG_NS}}}desc")
+                self.assertIsNotNone(title)
+                self.assertIsNotNone(description)
+                self.assertIn(expected_title, title.text or "")
+                self.assertGreater(len((description.text or "").strip()), 20)
+                self.assertIn("PingFang SC", source)
+                self.assertIn("关键结论", source)
+                self.assertNotIn("Key Takeaway", source)
+                self.assertIn("marker-end", source)
+
+                font_sizes = [int(value) for value in re.findall(r"font-size:\s*(\d+)px", source)]
+                self.assertTrue(font_sizes)
+                self.assertGreaterEqual(min(font_sizes), 14)
+
+                note = path.with_suffix(".figure-note.md")
+                self.assertTrue(note.exists())
+                note_source = note.read_text(encoding="utf-8")
+                self.assertIn("来源段落", note_source)
+                self.assertIn("关键结论", note_source)
+
+
+if __name__ == "__main__":
+    unittest.main()

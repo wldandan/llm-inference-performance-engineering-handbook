@@ -20,8 +20,8 @@
 - [x] 默认模型支持 Chat Completions。
 - [x] 启动脚本使用当前 vLLM 官方 `vllm serve` 接口。
 - [x] Part 1 导读反映新版 7 章结构及 Core / Bridge 分层。
-- [x] Review 和 Storyboard 与新版章节目标一致。
-- [x] 单元测试、干运行和章节结构校验通过。
+- [x] Review、Storyboard、10 张 v2 SVG 与新版章节目标一致，每张图均有制作说明。
+- [x] 单元测试、插图视觉契约测试、干运行、章节结构校验、SVG 解析和原尺寸渲染检查通过。
 - [ ] 在课程目标 GPU 环境完成服务启动、模型加载和流式请求验证。
 
 ### 测试用例
@@ -42,8 +42,8 @@
 - [x] 覆盖完成、取消、失败和抢占后的异常路径。
 - [x] Demo 能从 JSONL 事件计算 Queue、Prefill、Decode 等阶段时间。
 - [x] Demo 对非法状态跳转、时间戳逆序和错误 JSONL 给出明确错误。
-- [x] Review、Storyboard、10 张 SVG 线框与新版章节目标一致。
-- [x] 单元测试、章节结构校验和代表性 SVG 原尺寸渲染抽查通过。
+- [x] Review、Storyboard、10 张 v2 SVG 与新版章节目标一致，每张图均有制作说明。
+- [x] 单元测试、插图视觉契约测试、章节结构校验、SVG 解析和原尺寸渲染检查通过。
 
 ### 测试用例
 

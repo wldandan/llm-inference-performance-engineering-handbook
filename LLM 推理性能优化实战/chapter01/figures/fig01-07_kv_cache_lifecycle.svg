@@ -1,20 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
-  <rect width="1280" height="720" fill="#fff"/>
-  <text x="64" y="72" font-family="Arial, sans-serif" font-size="34" fill="#111">KV Cache 生命周期</text>
-  <g fill="none" stroke="#222" stroke-width="3">
-    <rect x="90" y="180" width="210" height="100" rx="8"/>
-    <rect x="390" y="180" width="210" height="100" rx="8"/>
-    <rect x="690" y="180" width="210" height="100" rx="8"/>
-    <rect x="990" y="180" width="200" height="100" rx="8"/>
-    <path d="M300 230h90M600 230h90M900 230h90"/>
-    <rect x="255" y="400" width="770" height="92" rx="8" stroke-dasharray="10 8"/>
-  </g>
-  <g font-family="Arial, sans-serif" fill="#111" text-anchor="middle">
-    <text x="195" y="240" font-size="22">Step A</text>
-    <text x="495" y="240" font-size="22">Step B</text>
-    <text x="795" y="240" font-size="22">Step C</text>
-    <text x="1090" y="240" font-size="22">Step D</text>
-    <text x="640" y="455" font-size="24">KV Cache 在 Prefill 写入，在 Decode 读写增长</text>
-  </g>
-  <text x="64" y="630" font-family="Arial, sans-serif" font-size="24" fill="#111">Key Takeaway: KV Cache 在 Prefill 写入，在 Decode 读写增长</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="fig-title fig-desc" data-figure-system="chapter01-v2" fill="#0F172A">
+  <title id="fig-title">图 1-7 KV Cache 生命周期</title><desc id="fig-desc">展示 KV Cache 在 Prefill 阶段写入 Prompt 缓存，在每轮 Decode 中被读取和追加，并在请求结束时释放或按策略复用。</desc>
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0L10 5L0 10Z" fill="#334155"/></marker><style>
+    text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}.k{font-size:14px;font-weight:700;letter-spacing:2px;fill:#64748B}.t{font-size:32px;font-weight:750}.sub{font-size:16px;fill:#64748B}.card{fill:#FFFFFF;stroke:#CBD5E1;stroke-width:1.8}.head{fill:#0F172A}.step{font-size:14px;font-weight:750;fill:#CBD5E1}.h{font-size:20px;font-weight:750;fill:#FFFFFF}.s{font-size:14px;fill:#64748B}.sl{font-size:14px;fill:#CBD5E1}.kv{fill:#E2E8F0;stroke:#94A3B8;stroke-width:1.2}.new{fill:#FFFFFF;stroke:#0F172A;stroke-width:1.8}.kt{font-size:14px;font-weight:700;fill:#475569}.flow{fill:none;stroke:#334155;stroke-width:2.5;marker-end:url(#arrow)}.take{fill:#0F172A}.tl{font-size:14px;font-weight:700;letter-spacing:1px;fill:#CBD5E1}.tv{font-size:19px;font-weight:650;fill:#FFFFFF}
+  </style></defs><rect width="1280" height="720" fill="#F8FAFC"/><text class="k" x="56" y="46">CACHE LIFECYCLE · 07</text><text class="t" x="56" y="84">KV Cache 连接 Prefill、Decode 与请求结束</text><text class="sub" x="56" y="114">它不是静态文件，而是伴随请求创建、增长并完成资源交接的运行时状态</text>
+  <g transform="translate(56 178)"><rect class="card" width="338" height="370" rx="20"/><path class="head" d="M20 0H318Q338 0 338 20V88H0V20Q0 0 20 0Z"/><text class="step" x="24" y="28" fill="#CBD5E1">PHASE 01</text><text class="h" x="24" y="62" fill="#FFFFFF">Prefill · 创建</text><text class="sl" x="24" y="82" fill="#CBD5E1">写入完整 Prompt 的 K / V</text><text class="s" x="24" y="130">Prompt KV</text><g transform="translate(24 158)"><rect class="kv" width="54" height="74" rx="8"/><rect class="kv" x="62" width="54" height="74" rx="8"/><rect class="kv" x="124" width="54" height="74" rx="8"/><rect class="kv" x="186" width="54" height="74" rx="8"/><rect class="kv" x="248" width="42" height="74" rx="8"/></g><text class="kt" x="169" y="278" text-anchor="middle">prompt positions</text><text class="s" x="24" y="326">后续 Decode 不再重复计算这些位置</text></g>
+  <path class="flow" d="M394 363H452"/><path d="M452 363l-11 -7v14z" fill="#334155"/>
+  <g transform="translate(458 178)"><rect class="card" width="366" height="370" rx="20"/><path class="head" d="M20 0H346Q366 0 366 20V88H0V20Q0 0 20 0Z"/><text class="step" x="24" y="28" fill="#CBD5E1">PHASE 02</text><text class="h" x="24" y="62" fill="#FFFFFF">Decode · 读取并增长</text><text class="sl" x="24" y="82" fill="#CBD5E1">每轮复用已有 K / V，再追加一格</text><text class="s" x="24" y="130">Iteration n</text><g transform="translate(24 158)"><rect class="kv" width="54" height="74" rx="8"/><rect class="kv" x="62" width="54" height="74" rx="8"/><rect class="kv" x="124" width="54" height="74" rx="8"/><rect class="kv" x="186" width="54" height="74" rx="8"/><rect class="new" x="248" width="54" height="74" rx="8"/><text class="kt" x="275" y="45" text-anchor="middle">+1</text></g><path class="flow" d="M72 286H294"/><path d="M294 286l-11 -7v14z" fill="#334155"/><text class="s" x="183" y="318" text-anchor="middle">读取已有块 → 追加新 token</text></g>
+  <path class="flow" d="M824 363H882"/><path d="M882 363l-11 -7v14z" fill="#334155"/>
+  <g transform="translate(888 178)"><rect class="card" width="336" height="370" rx="20"/><path class="head" d="M20 0H316Q336 0 336 20V88H0V20Q0 0 20 0Z"/><text class="step" x="24" y="28" fill="#CBD5E1">PHASE 03</text><text class="h" x="24" y="62" fill="#FFFFFF">Finish · 资源交接</text><text class="sl" x="24" y="82" fill="#CBD5E1">停止增长，执行明确策略</text><rect class="new" x="24" y="136" width="288" height="76" rx="14"/><text class="kt" x="168" y="168" text-anchor="middle">Release</text><text class="s" x="168" y="192" text-anchor="middle">释放给后续请求</text><rect class="kv" x="24" y="230" width="288" height="76" rx="14"/><text class="kt" x="168" y="262" text-anchor="middle">Reuse by Policy</text><text class="s" x="168" y="286" text-anchor="middle">由显式缓存策略保留</text><text class="s" x="24" y="340">不能让已结束请求继续无主占用资源</text></g>
+  <rect class="take" x="56" y="642" width="1168" height="54" rx="14"/><text class="tl" x="80" y="675" fill="#CBD5E1">关键结论</text><text class="tv" x="184" y="676" fill="#FFFFFF">KV Cache 在 Prefill 写入，在 Decode 读写增长，结束时必须交接。</text>
 </svg>

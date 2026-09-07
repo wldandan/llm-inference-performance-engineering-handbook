@@ -39,7 +39,7 @@
 
 ## 完成状态与后续优先级
 
-1. 已完成：生成并验证 10 张生命周期线框图，旧 Architecture 图片已迁出并保留给 Chapter 3。
+1. 已完成：按 v2 视觉系统重画并验证 10 张生命周期图，每张图均有独立制作说明；旧 Architecture 图片已迁出并保留给 Chapter 3。
 2. 已完成：Demo 的 9 项单元测试与样例 CLI 通过，覆盖正常、取消、失败三类路径。
 3. P1：Chapter 3 完成后复查相邻章节交叉引用。
 4. P2：后续增加一个真实框架 Trace 适配器，但不阻塞本章 Core 版本。
@@ -48,6 +48,7 @@
 
 - 章节标题、学习目标、Demo、总结和练习都回答 Inference Lifecycle。
 - 正文恰好引用图 2-1 到图 2-10，文件存在且 SVG 可解析。
+- 10 张图通过插图视觉契约测试和 `1280x720` 原尺寸渲染目检。
 - `python3 -m unittest test_lifecycle_trace.py` 全部通过。
 - 样例 CLI 输出 3 条请求，其中 finished、cancelled、failed 各 1 条。
 - 非法状态跳转和逆序时间戳会被拒绝。

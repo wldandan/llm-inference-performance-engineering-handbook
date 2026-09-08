@@ -7,7 +7,7 @@
 - 关键路径上的阶段占比；
 - 每个候选阶段仍需补采的证据。
 
-从课程根目录运行三类样例：
+从 Git 仓库根目录运行三类样例：
 
 ```bash
 python3 code/chapter07/performance_model.py code/chapter07/sample_llm_request.json

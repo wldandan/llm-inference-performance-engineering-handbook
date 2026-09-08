@@ -10,7 +10,7 @@
 
 ## 运行
 
-从课程根目录运行：
+从 Git 仓库根目录运行：
 
 ```bash
 python3 code/chapter04/mechanics.py \
@@ -36,7 +36,7 @@ python3 code/chapter04/mechanics.py --output mechanics-report.json
 
 ## 真实模型扩展
 
-需要加载真实 Qwen2.5 模型时，继续运行 workshops/00-model-internals。该 Workshop 会读取真实 config、注册 forward hook，并观察 past_key_values 增长。它属于扩展实验，不改变本章 Demo 的离线可运行要求。
+需要加载真实 Qwen2.5 模型时，继续运行 `LLM 推理性能优化实战/workshops/00-model-internals`。该 Workshop 会读取真实 config、注册 forward hook，并观察 past_key_values 增长。它属于扩展实验，不改变本章 Demo 的离线可运行要求。
 
 ## 测试
 

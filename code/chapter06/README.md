@@ -6,7 +6,7 @@
 - Output TPS、RPS 与满足 TTFT / E2E SLO 的 Goodput；
 - 每百万输出 token 成本与每个成功请求成本。
 
-从课程根目录运行：
+从 Git 仓库根目录运行：
 
 ```bash
 python3 code/chapter06/metrics_report.py

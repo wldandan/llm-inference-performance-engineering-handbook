@@ -245,7 +245,7 @@ USD per good request
 
 本章 Demo 位于 `code/chapter06`，只依赖 Python 标准库。它读取 JSONL 请求记录，生成客户端口径的延迟、吞吐、Goodput 与成本报告。
 
-从课程根目录运行合成样例：
+从 Git 仓库根目录运行合成样例：
 
 ```bash
 python3 code/chapter06/metrics_report.py

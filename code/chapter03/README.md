@@ -35,7 +35,7 @@ accelerator -> runtime -> worker -> gateway -> client
 
 ## 3. 运行检查
 
-从课程目录运行：
+从 Git 仓库根目录运行：
 
 ```bash
 python3 code/chapter03/architecture_contract.py \

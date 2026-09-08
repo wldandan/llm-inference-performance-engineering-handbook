@@ -77,7 +77,7 @@ curl http://127.0.0.1:8000/v1/models
 
 ## 4. 使用脚本访问服务
 
-从课程根目录运行：
+从 Git 仓库根目录运行：
 
 ```bash
 python3 code/chapter01/demo.py \

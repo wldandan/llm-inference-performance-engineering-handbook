@@ -191,7 +191,7 @@ first_token
 
 本章 Demo 位于 `code/chapter02/`，只使用 Python 标准库，可在没有 GPU 的机器上运行。样例事件是合成数据，目的是验证状态与时间边界，不代表任何模型、框架或硬件的真实性能。
 
-从课程目录运行：
+从 Git 仓库根目录运行：
 
 ```bash
 python3 code/chapter02/lifecycle_trace.py \
@@ -211,7 +211,7 @@ python3 code/chapter02/lifecycle_trace.py \
 
 正常请求会得到 admission、queue、prefill、decode、response tail 和 end-to-end。取消请求如果没有产生首 token，就不会伪造 prefill 或 decode 时间。这个细节很重要：缺少事件表示“当前证据算不出来”，不是零毫秒。
 
-实验输入、事件规范和测试命令见 [Demo README](../code/chapter02/README.md)。
+实验输入、事件规范和测试命令见 [Demo README](../../code/chapter02/README.md)。
 
 ![生命周期事件如何生成阶段报告](figures/fig02-09_demo_event_report.svg)
 

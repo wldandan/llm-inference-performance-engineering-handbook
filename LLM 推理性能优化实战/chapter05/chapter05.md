@@ -210,7 +210,7 @@ Occupancy 不是越高越快。足够多的活跃 Warp 可以帮助隐藏等待�
 
 本章 Demo 位于 `code/chapter05`，只依赖 Python 标准库。它不会调用 `nvidia-smi`，也不会探测当前机器，而是把你提供的模型和硬件假设代入本章公式。
 
-从课程根目录运行默认场景：
+从 Git 仓库根目录运行默认场景：
 
 ```bash
 python3 code/chapter05/gpu_model.py

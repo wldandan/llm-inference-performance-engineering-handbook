@@ -6,7 +6,7 @@
 - 算力、显存带宽和 Kernel Launch 的理论时间下界；
 - 当前输入假设下最值得先验证的一类约束。
 
-从课程根目录运行：
+从 Git 仓库根目录运行：
 
 ```bash
 python3 code/chapter05/gpu_model.py

@@ -24,7 +24,7 @@
 ## 内容缺口
 
 - 当前 Demo 使用纯 Python 合成数据，不加载真实权重，也不验证框架内部张量布局。
-- `workshops/00-model-internals` 可作为真实模型扩展实验，但正式交付仍需记录 torch、transformers、模型版本和设备环境。
+- `LLM 推理性能优化实战/workshops/00-model-internals` 可作为真实模型扩展实验，但正式交付仍需记录 torch、transformers、模型版本和设备环境。
 - 不同模型家族的 Norm、位置编码、MLP 和 Attention 变体没有逐一比较；这不影响本章 Core 目标。
 
 ## 可删减内容

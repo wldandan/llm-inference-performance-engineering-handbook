@@ -3,8 +3,9 @@ import unittest
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parents[1]
-CODE_DIR = ROOT / "code"
+COURSE_ROOT = Path(__file__).resolve().parents[1]
+REPOSITORY_ROOT = COURSE_ROOT.parent
+CODE_DIR = REPOSITORY_ROOT / "code"
 
 EXPECTED_IMPLEMENTED_FILES = {
     1: {"README.md", "demo.py", "start_vllm.py", "test_demo.py", "test_start_vllm.py"},
@@ -30,6 +31,10 @@ EXPECTED_IMPLEMENTED_FILES = {
 
 
 class CentralCodeLayoutTests(unittest.TestCase):
+    def test_code_directory_is_at_repository_root(self):
+        self.assertTrue(CODE_DIR.is_dir())
+        self.assertFalse((COURSE_ROOT / "code").exists())
+
     def test_implemented_demos_live_in_chapter_named_code_directories(self):
         for chapter, expected_files in EXPECTED_IMPLEMENTED_FILES.items():
             with self.subTest(chapter=chapter):
@@ -42,9 +47,9 @@ class CentralCodeLayoutTests(unittest.TestCase):
 
     def test_legacy_demo_directories_are_removed(self):
         legacy = [
-            ROOT / f"chapter{chapter:02d}" / "demo"
+            COURSE_ROOT / f"chapter{chapter:02d}" / "demo"
             for chapter in range(1, 31)
-            if (ROOT / f"chapter{chapter:02d}" / "demo").exists()
+            if (COURSE_ROOT / f"chapter{chapter:02d}" / "demo").exists()
         ]
         self.assertEqual(legacy, [])
 
@@ -57,12 +62,16 @@ class CentralCodeLayoutTests(unittest.TestCase):
         for chapter in EXPECTED_IMPLEMENTED_FILES:
             self.assertIn(f"[code/chapter{chapter:02d}](chapter{chapter:02d}/README.md)", index)
 
-    def test_chapter_readmes_use_course_root_test_commands(self):
+    def test_chapter_readmes_use_repository_root_commands(self):
+        index = (CODE_DIR / "README.md").read_text(encoding="utf-8")
+        self.assertIn("从 Git 仓库根目录运行", index)
+
         for chapter in EXPECTED_IMPLEMENTED_FILES:
             with self.subTest(chapter=chapter):
                 source = (CODE_DIR / f"chapter{chapter:02d}" / "README.md").read_text(
                     encoding="utf-8"
                 )
+                self.assertIn("从 Git 仓库根目录", source)
                 self.assertIn(
                     f"python3 -m unittest discover -s code/chapter{chapter:02d} "
                     "-p 'test_*.py'",
@@ -70,9 +79,9 @@ class CentralCodeLayoutTests(unittest.TestCase):
                 )
 
     def test_active_course_markdown_contains_no_legacy_demo_paths(self):
-        documents = list(ROOT.glob("*.md"))
+        documents = list(COURSE_ROOT.glob("*.md"))
         for chapter in range(1, 31):
-            chapter_dir = ROOT / f"chapter{chapter:02d}"
+            chapter_dir = COURSE_ROOT / f"chapter{chapter:02d}"
             documents.extend(chapter_dir.glob("*.md"))
             documents.extend((chapter_dir / "figures").glob("*.md"))
 
@@ -80,7 +89,7 @@ class CentralCodeLayoutTests(unittest.TestCase):
         legacy_path = re.compile(r"(?<!code/)chapter\d{2}/demo(?:/|\b)|\]\(demo/")
         for document in documents:
             if legacy_path.search(document.read_text(encoding="utf-8")):
-                violations.append(document.relative_to(ROOT).as_posix())
+                violations.append(document.relative_to(COURSE_ROOT).as_posix())
         self.assertEqual(violations, [])
 
 

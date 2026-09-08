@@ -31,7 +31,7 @@ request_received
 
 ## 3. 运行分析器
 
-从课程目录运行：
+从 Git 仓库根目录运行：
 
 ```bash
 python3 code/chapter02/lifecycle_trace.py \

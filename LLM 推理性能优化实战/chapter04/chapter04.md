@@ -236,7 +236,7 @@ KV Cache 保存的是每一层历史 token 的 Key 和 Value，不是完整 hidd
 
 本章 Demo 位于 code/chapter04，只依赖 Python 标准库。它不会加载真实模型，而是用一组接近 Qwen2.5-0.5B 的教学配置，生成可检查的合成机制报告。
 
-从课程根目录运行：
+从 Git 仓库根目录运行：
 
 ```bash
 python3 code/chapter04/mechanics.py \
@@ -259,7 +259,7 @@ python3 code/chapter04/mechanics.py \
 
 图4-8：Demo 输出模型机制报告。
 
-需要观察真实模型时，可以继续运行 workshops/00-model-internals。该 Workshop 会读取真实模型 config、核对运行时张量形状，并观察 past_key_values 随 Decode 增长。它需要 transformers 与 torch，适合作为本章的扩展实验。
+需要观察真实模型时，可以继续运行 `LLM 推理性能优化实战/workshops/00-model-internals`。该 Workshop 会读取真实模型 config、核对运行时张量形状，并观察 past_key_values 随 Decode 增长。它需要 transformers 与 torch，适合作为本章的扩展实验。
 
 ## 4.9 课堂案例：同一个模型为什么会给出不同回答
 
@@ -329,4 +329,4 @@ Prefill 与 Decode 使用同一组模型参数。Prefill 一次处理完整 Prom
 3. 画出长度为 5 的 Prompt 经过 Prefill 和 3 个 Decode steps 后，KV Cache 长度的变化。
 4. 使用本章 Demo 比较 Temperature 0.5 与 1.5 的候选概率，不把结果解释成性能差异。
 5. 把 Top-k 从 2 改成 4，观察哪些 token 获得非零概率。
-6. 运行 workshops/00-model-internals，核对真实模型的 Query 与 K/V Head 形状。
+6. 运行 `LLM 推理性能优化实战/workshops/00-model-internals`，核对真实模型的 Query 与 K/V Head 形状。

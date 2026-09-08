@@ -42,7 +42,7 @@
 
 ## 未解决问题
 
-尚未在课程指定模型与 GPU 环境运行 `workshops/00-model-internals`，因此没有交付真实张量快照和运行环境报告。
+尚未在课程指定模型与 GPU 环境运行 `LLM 推理性能优化实战/workshops/00-model-internals`，因此没有交付真实张量快照和运行环境报告。
 
 ## 验收结果
 

@@ -222,7 +222,7 @@ Agent 还有一个累积效应：每轮把历史和工具结果重新放进上�
 
 图7-9：Demo 从合成依赖图生成关键路径、阶段占比和待验证假设。
 
-从课程根目录分别运行三类样例：
+从 Git 仓库根目录分别运行三类样例：
 
 ```bash
 python3 code/chapter07/performance_model.py code/chapter07/sample_llm_request.json

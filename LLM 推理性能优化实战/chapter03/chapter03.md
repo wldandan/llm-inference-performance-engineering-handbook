@@ -223,7 +223,7 @@ Accelerator 是执行张量计算并承载设备内存的硬件。本书主要�
 
 ## 3.10 Demo：检查一份 LLM Serving 架构契约
 
-本章 Demo 位于 `chapter03/demo/`。它读取一份 JSON 架构说明，检查以下内容：
+本章 Demo 位于 `code/chapter03/`。它读取一份 JSON 架构说明，检查以下内容：
 
 - Client 到 Accelerator 的请求路径是否完整；
 - Accelerator 返回 Client 的响应路径是否完整；
@@ -235,8 +235,8 @@ Accelerator 是执行张量计算并承载设备内存的硬件。本书主要�
 从课程目录运行：
 
 ```bash
-python3 chapter03/demo/architecture_contract.py \
-  --input chapter03/demo/reference-architecture.json
+python3 code/chapter03/architecture_contract.py \
+  --input code/chapter03/reference-architecture.json
 ```
 
 报告中最值得先看的三部分是：
@@ -251,7 +251,7 @@ deployment_units
 
 尝试删除 `scheduler -> worker` 连线，程序会报告缺少完整请求路径。再尝试删除 Router：即使 Gateway 可以直接连接 Admission，这份课程契约仍会拒绝，因为架构需要显式说明“目标选择”由谁负责。你可以让 Gateway 组件兼任 Router，但应在逻辑图和配置里保留 Router 角色。
 
-完整输入格式、命令和练习见 [Demo README](demo/README.md)。这套 Demo 不连接真实服务，也不产生性能结论。
+完整输入格式、命令和练习见 [Demo README](../code/chapter03/README.md)。这套 Demo 不连接真实服务，也不产生性能结论。
 
 ![架构契约 Demo](figures/fig03-09_demo_architecture_contract.svg)
 

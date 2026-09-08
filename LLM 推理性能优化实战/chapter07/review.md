@@ -62,7 +62,7 @@
 ## 验收建议
 
 - 正文恰好引用图 7-1 到图 7-9，文件、图号与 Storyboard 连续一致。
-- `python3 -m unittest discover -s chapter07/demo -p 'test_*.py' -v` 的 8 项测试全部通过。
+- `python3 -m unittest discover -s code/chapter07 -p 'test_*.py' -v` 的 8 项测试全部通过。
 - 9 张 SVG 可解析、可渲染，正文与结论栏无裁切或重叠。
 - LLM 串行样例的关键路径等于阶段和；RAG / Agent 并行样例不把所有节点直接相加。
 - 报告中的候选项都保持 `needs_evidence`，不伪装成 Root Cause。

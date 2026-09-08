@@ -19,14 +19,14 @@ Part 1《LLM 推理系统基础》已按 v1.0 大纲完成 Chapter 1–7 的正�
 | Chapter 7 Global Performance Model | DAG Critical Path 与 RAG / Agent 路径 | 8 | 9 |
 | 合计 | 7 章 | 62 | 58 |
 
-Chapter 4 另有 25 项模型机制 Workshop 测试。章节插图之外还有 26 项结构、视觉契约和校验器测试；本轮合计执行 113 项测试。
+Chapter 4 另有 25 项模型机制 Workshop 测试。章节插图之外还有 31 项结构、视觉契约、集中代码目录和校验器测试；本轮合计执行 118 项测试。
 
 ## 交付物组成
 
 每章至少包含：
 
 - `chapterXX.md`：可独立阅读的教程正文；
-- `demo/`：不依赖 GPU 的最小可运行练习或真实服务客户端；
+- `code/chapterNN/`：不依赖 GPU 的最小可运行练习或真实服务客户端；
 - `review.md`：结构、技术边界、缺口与后续优先级；
 - `storyboard.md`：插图职责、Wireframe 和视觉规范；
 - `figures/`：SVG 正稿和一一对应的 `figure-note.md`；
@@ -37,7 +37,7 @@ Chapter 4 另有 25 项模型机制 Workshop 测试。章节插图之外还有 2
 - `python3 scripts/validate_part.py --part 1`：通过，实际覆盖 Chapter 1–7。
 - 七章 Demo：62 项测试通过。
 - Chapter 4 模型机制 Workshop：25 项测试通过。
-- 章节结构、插图契约与校验器：26 项测试通过。
+- 章节结构、插图契约、集中代码目录与校验器：31 项测试通过。
 - 58 张 SVG：XML 解析通过，并全部重新渲染为 1280×720 PNG。
 - 58 张 SVG 均有同名 `figure-note.md`。
 - Part 1 正文与 Demo README 的本地 Markdown 链接：0 个缺失。

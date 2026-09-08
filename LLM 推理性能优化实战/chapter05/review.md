@@ -53,7 +53,7 @@
 
 - 正文恰好引用图 5-1 到图 5-8，文件存在且编号连续。
 - 章节明确出现 Bridge 和四类约束，不以硬件微架构作为 Core 起点。
-- `python3 -m unittest discover -s chapter05/demo -p 'test_*.py' -v` 的 9 项测试全部通过。
+- `python3 -m unittest discover -s code/chapter05 -p 'test_*.py' -v` 的 9 项测试全部通过。
 - 8 张 SVG 可解析，符合 `chapter05-v2` 视觉契约，并各有制作说明。
 - Demo 输出 `synthetic_gpu_mental_model` 和“不是 Benchmark”。
 - 任何 Compute、Bandwidth 或 Launch 判断都被表述为候选约束或待验证假设。

@@ -49,7 +49,7 @@
 - 章节标题、学习目标、Demo、总结和练习都回答 Inference Lifecycle。
 - 正文恰好引用图 2-1 到图 2-10，文件存在且 SVG 可解析。
 - 10 张图通过插图视觉契约测试和 `1280x720` 原尺寸渲染目检。
-- `python3 -m unittest test_lifecycle_trace.py` 全部通过。
+- `python3 -m unittest discover -s code/chapter02 -p 'test_*.py'` 全部通过。
 - 样例 CLI 输出 3 条请求，其中 finished、cancelled、failed 各 1 条。
 - 非法状态跳转和逆序时间戳会被拒绝。
 - 合成数据和真实性能数据的边界写清楚。

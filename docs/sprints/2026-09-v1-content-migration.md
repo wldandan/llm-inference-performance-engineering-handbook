@@ -16,7 +16,7 @@
 ### 验收条件
 
 - [x] 第 1 章以“启动服务并完成一次流式请求”为首个学习结果。
-- [x] 示例代码归属 `chapter01/demo/`，正文不存在旧的 `chapter02/demo/` 路径。
+- [x] 示例代码归属 `code/chapter01/`，正文不存在旧的跨章节路径。
 - [x] 默认模型支持 Chat Completions。
 - [x] 启动脚本使用当前 vLLM 官方 `vllm serve` 接口。
 - [x] Part 1 导读反映新版 7 章结构及 Core / Bridge 分层。
@@ -161,3 +161,14 @@
 2. [x] 完成 Part 1 全量测试、图片渲染、链接与交付审计。
 3. [ ] 在目标 GPU 环境补做 Chapter 1 的真实服务启动与流式请求验证。
 4. [ ] 启动 Part 2，先重构 Chapter 8：Benchmark Design。
+
+## Task CODE01：统一章节 Demo 目录
+
+### 验收条件
+
+- [x] 已实现 Demo 迁移到 `code/chapter01`–`code/chapter07`。
+- [x] Chapter 8–30 在统一索引登记为待建设，不创建空代码目录。
+- [x] 正文、Demo README、Review、Storyboard 和 figure-note 不再引用旧 `chapterNN/demo/`。
+- [x] 每章实现、样例和测试保持在同一个 `code/chapterNN/` 目录。
+- [x] `code/README.md` 连续列出 Ch01–Ch30，并为已实现章节提供入口。
+- [x] 自动测试检查目录、文件集合、章节命名和旧路径残留。

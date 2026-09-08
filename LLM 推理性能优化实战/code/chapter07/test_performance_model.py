@@ -8,7 +8,7 @@ MODULE_PATH = Path(__file__).with_name("performance_model.py")
 
 def load_performance_model():
     if not MODULE_PATH.exists():
-        raise AssertionError("chapter07/demo/performance_model.py must exist")
+        raise AssertionError("code/chapter07/performance_model.py must exist")
     spec = importlib.util.spec_from_file_location("chapter07_performance_model", MODULE_PATH)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None

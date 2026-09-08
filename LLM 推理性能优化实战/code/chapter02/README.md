@@ -34,16 +34,16 @@ request_received
 从课程目录运行：
 
 ```bash
-python3 chapter02/demo/lifecycle_trace.py \
-  --input chapter02/demo/sample-events.jsonl
+python3 code/chapter02/lifecycle_trace.py \
+  --input code/chapter02/sample-events.jsonl
 ```
 
 也可以保存报告：
 
 ```bash
-python3 chapter02/demo/lifecycle_trace.py \
-  --input chapter02/demo/sample-events.jsonl \
-  --output chapter02/demo/lifecycle-report.json
+python3 code/chapter02/lifecycle_trace.py \
+  --input code/chapter02/sample-events.jsonl \
+  --output code/chapter02/lifecycle-report.json
 ```
 
 生成的报告会包含每条请求的终态，以及能够从事件边界算出的阶段时间：
@@ -77,8 +77,7 @@ python3 chapter02/demo/lifecycle_trace.py \
 ## 5. 单元测试
 
 ```bash
-cd chapter02/demo
-python3 -m unittest test_lifecycle_trace.py
+python3 -m unittest discover -s code/chapter02 -p 'test_*.py'
 ```
 
 测试覆盖正常完成、取消、非法状态跳转、时间戳逆序、多请求分组、JSONL 读取，以及 CLI 输出与报告保存。

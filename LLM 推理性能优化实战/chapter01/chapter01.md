@@ -58,7 +58,7 @@ Qwen/Qwen2.5-0.5B-Instruct
 在课程根目录启动服务：
 
 ```bash
-python3 chapter01/demo/start_vllm.py \
+python3 code/chapter01/start_vllm.py \
   --model Qwen/Qwen2.5-0.5B-Instruct \
   --served-model-name Qwen/Qwen2.5-0.5B-Instruct \
   --host 0.0.0.0 \
@@ -80,7 +80,7 @@ curl http://127.0.0.1:8000/v1/models
 保持服务端终端运行，在第二个终端执行：
 
 ```bash
-python3 chapter01/demo/demo.py \
+python3 code/chapter01/demo.py \
   --base-url http://127.0.0.1:8000/v1 \
   --model Qwen/Qwen2.5-0.5B-Instruct \
   --prompt "请用三句话介绍 LLM 在线推理。" \
@@ -153,7 +153,7 @@ python3 chapter01/demo/demo.py \
 如果需要保存完整报告，可以使用脚本的 `--output` 参数：
 
 ```bash
-python3 chapter01/demo/demo.py \
+python3 code/chapter01/demo.py \
   --base-url http://127.0.0.1:8000/v1 \
   --model Qwen/Qwen2.5-0.5B-Instruct \
   --prompt "请用三句话介绍 LLM 在线推理。" \

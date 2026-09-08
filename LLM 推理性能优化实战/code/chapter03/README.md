@@ -38,16 +38,16 @@ accelerator -> runtime -> worker -> gateway -> client
 从课程目录运行：
 
 ```bash
-python3 chapter03/demo/architecture_contract.py \
-  --input chapter03/demo/reference-architecture.json
+python3 code/chapter03/architecture_contract.py \
+  --input code/chapter03/reference-architecture.json
 ```
 
 保存报告：
 
 ```bash
-python3 chapter03/demo/architecture_contract.py \
-  --input chapter03/demo/reference-architecture.json \
-  --output chapter03/demo/architecture-report.json
+python3 code/chapter03/architecture_contract.py \
+  --input code/chapter03/reference-architecture.json \
+  --output code/chapter03/architecture-report.json
 ```
 
 报告包含：
@@ -79,8 +79,7 @@ python3 chapter03/demo/architecture_contract.py \
 ## 5. 单元测试
 
 ```bash
-cd chapter03/demo
-python3 -m unittest test_architecture_contract.py
+python3 -m unittest discover -s code/chapter03 -p 'test_*.py'
 ```
 
 13 项测试覆盖完整请求与响应路径、职责分离、部署单元、缺失角色、重复 ID、错误连线、JSON 读取、CLI 输出和报告保存。

@@ -222,18 +222,18 @@ Agent 还有一个累积效应：每轮把历史和工具结果重新放进上�
 
 图7-9：Demo 从合成依赖图生成关键路径、阶段占比和待验证假设。
 
-进入 Demo 目录后，可以分别运行三类样例：
+从课程根目录分别运行三类样例：
 
 ```bash
-python3 performance_model.py sample_llm_request.json
-python3 performance_model.py sample_rag.json
-python3 performance_model.py sample_agent.json
+python3 code/chapter07/performance_model.py code/chapter07/sample_llm_request.json
+python3 code/chapter07/performance_model.py code/chapter07/sample_rag.json
+python3 code/chapter07/performance_model.py code/chapter07/sample_agent.json
 ```
 
 也可以保存 Agent 报告：
 
 ```bash
-python3 performance_model.py sample_agent.json \
+python3 code/chapter07/performance_model.py code/chapter07/sample_agent.json \
   --output global-performance-report.json
 ```
 
@@ -257,7 +257,7 @@ evidence_needed:
 Demo 还会拒绝循环依赖、未知依赖、重复节点 ID 和负时长，防止一张结构不合法的图产生貌似精确的答案。运行测试：
 
 ```bash
-python3 -m unittest discover -s . -p 'test_*.py' -v
+python3 -m unittest discover -s code/chapter07 -p 'test_*.py' -v
 ```
 
 ## 7.9 课堂案例：企业问答为什么“GPU 不忙但用户很慢”

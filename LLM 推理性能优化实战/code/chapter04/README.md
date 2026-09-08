@@ -10,9 +10,10 @@
 
 ## 运行
 
+从课程根目录运行：
+
 ```bash
-cd chapter04/demo
-python3 mechanics.py \
+python3 code/chapter04/mechanics.py \
   --prompt-tokens 8 \
   --decode-steps 4 \
   --temperature 1.0 \
@@ -23,7 +24,7 @@ python3 mechanics.py \
 保存 JSON：
 
 ```bash
-python3 mechanics.py --output mechanics-report.json
+python3 code/chapter04/mechanics.py --output mechanics-report.json
 ```
 
 ## 阅读输出
@@ -40,5 +41,5 @@ python3 mechanics.py --output mechanics-report.json
 ## 测试
 
 ```bash
-python3 -m unittest test_mechanics.py
+python3 -m unittest discover -s code/chapter04 -p 'test_*.py'
 ```

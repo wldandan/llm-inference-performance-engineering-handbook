@@ -53,6 +53,6 @@
 - 标题、学习目标、Demo、案例、总结和练习都回答 LLM Inference Architecture。
 - 正文恰好引用图 3-1 到图 3-10，文件存在且 SVG 可解析。
 - Demo 能识别缺失角色、重复组件、未知连线端点、错误连线类型和不完整路径。
-- `python3 -m unittest test_architecture_contract.py` 的 13 项测试全部通过。
+- `python3 -m unittest discover -s code/chapter03 -p 'test_*.py'` 的 13 项测试全部通过。
 - 成熟系统映射附近保留官方资料链接，产品事实不依赖旧版记忆。
 - 章节不提前给出性能指标结论或具体优化参数。

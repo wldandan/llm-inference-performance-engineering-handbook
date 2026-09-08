@@ -53,6 +53,6 @@
 - 标题、学习目标、Demo、案例、总结和练习都回答“模型怎样生成下一个 token”。
 - 正文恰好引用图 4-1 到图 4-8，路径存在且编号连续。
 - 8 张 SVG 可解析，符合章节视觉契约，并各有制作说明。
-- `python3 -m unittest discover -s chapter04/demo -p 'test_*.py' -v` 的 8 项测试全部通过。
+- `python3 -m unittest discover -s code/chapter04 -p 'test_*.py' -v` 的 8 项测试全部通过。
 - Demo 输出明确标记为合成机制报告，不出现真实性能数字。
 - 章节不提前展开 GPU 性能分析、指标统计或 Serving 优化方案。

@@ -35,7 +35,7 @@ Qwen/Qwen2.5-0.5B-Instruct
 如果模型已经在 Hugging Face cache 中，或当前环境可以直接解析该模型 id：
 
 ```bash
-python3 chapter01/demo/start_vllm.py \
+python3 code/chapter01/start_vllm.py \
   --model Qwen/Qwen2.5-0.5B-Instruct \
   --served-model-name Qwen/Qwen2.5-0.5B-Instruct \
   --host 0.0.0.0 \
@@ -45,7 +45,7 @@ python3 chapter01/demo/start_vllm.py \
 如果模型已经在本地目录，例如 GX10 上的 `/home/admin/models/Qwen2.5-0.5B-Instruct`：
 
 ```bash
-python3 chapter01/demo/start_vllm.py \
+python3 code/chapter01/start_vllm.py \
   --model /home/admin/models/Qwen2.5-0.5B-Instruct \
   --served-model-name Qwen/Qwen2.5-0.5B-Instruct \
   --host 0.0.0.0 \
@@ -64,7 +64,7 @@ vllm serve /home/admin/models/Qwen2.5-0.5B-Instruct \
 如果只想确认封装脚本生成的命令，不启动服务：
 
 ```bash
-python3 chapter01/demo/start_vllm.py --dry-run
+python3 code/chapter01/start_vllm.py --dry-run
 ```
 
 ## 3. 确认服务可访问
@@ -80,7 +80,7 @@ curl http://127.0.0.1:8000/v1/models
 从课程根目录运行：
 
 ```bash
-python3 chapter01/demo/demo.py \
+python3 code/chapter01/demo.py \
   --base-url http://127.0.0.1:8000/v1 \
   --model Qwen/Qwen2.5-0.5B-Instruct \
   --prompt "请用三句话介绍 LLM 在线推理。" \
@@ -108,6 +108,5 @@ python3 chapter01/demo/demo.py \
 单元测试只验证命令构造、请求构造和客户端计算逻辑，不需要启动 vLLM：
 
 ```bash
-cd chapter01/demo
-python3 -m unittest test_demo.py test_start_vllm.py
+python3 -m unittest discover -s code/chapter01 -p 'test_*.py'
 ```

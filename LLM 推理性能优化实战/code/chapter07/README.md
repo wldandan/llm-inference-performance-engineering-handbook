@@ -7,18 +7,26 @@
 - 关键路径上的阶段占比；
 - 每个候选阶段仍需补采的证据。
 
-运行三类样例：
+从课程根目录运行三类样例：
 
 ```bash
-python3 performance_model.py sample_llm_request.json
-python3 performance_model.py sample_rag.json
-python3 performance_model.py sample_agent.json
+python3 code/chapter07/performance_model.py code/chapter07/sample_llm_request.json
+python3 code/chapter07/performance_model.py code/chapter07/sample_rag.json
+python3 code/chapter07/performance_model.py code/chapter07/sample_agent.json
 ```
 
 保存报告：
 
 ```bash
-python3 performance_model.py sample_agent.json --output global-performance-report.json
+python3 code/chapter07/performance_model.py \
+  code/chapter07/sample_agent.json \
+  --output global-performance-report.json
 ```
 
 报告会拒绝循环依赖、未知节点、重复 ID 和负时长。`synthetic_global_performance_model` 表示它只分析输入的合成依赖图。最长节点或关键路径只是候选分析入口，不是 Root Cause；还要用 Benchmark、Trace、服务指标和 GPU Profiling 验证。
+
+## 测试
+
+```bash
+python3 -m unittest discover -s code/chapter07 -p 'test_*.py'
+```

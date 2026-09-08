@@ -8,13 +8,15 @@
 
 | 路径 | 状态 | 说明 |
 |---|---|---|
-| `LLM 推理性能优化实战/` | **当前唯一权威版本** | 30 章 / 7 Part 正文 + Workshops。目录名暂时保留，课程名称以 v1.0 大纲为准。 |
+| `LLM 推理性能优化实战/` | **当前唯一权威版本** | 30 章 / 7 Part 正文、统一的 `code/chapterNN/` Demo 与 Workshops。目录名暂时保留，课程名称以 v1.0 大纲为准。 |
 | `index.html` | 已发布落地页 | 面向学员的宣传主页，内容与仓库内 `LLM 推理性能优化实战/index.html` 保持同步（同一份文件的两个副本，手动同步）。 |
 | `ref/` | 参考资料 | 写作时用到的外部链接和图片，非课程正文。 |
 | `_archive/lesson/` | **历史遗留，不是当前基线** | 旧版 18 讲课堂讲稿（slides.html + 学生材料 + demo 脚本），对应已废弃的"8 篇"旧大纲，章节编号与当前 30 章体系不对应。保留用于参考讲稿结构和复用 Demo 脚本，不代表当前课程内容。 |
 | `_archive/bak/` | **历史遗留，不是当前基线** | 旧版大纲文档和早期工作流规范，已被 `01_Course_Design.md` / `02_Course_Outline_v1.0.md` / `03_Course_Template.md` 取代。 |
 
 2026-09-07 确认 v1.0 重构方案。权威课程结构见 `LLM 推理性能优化实战/02_Course_Outline_v1.0.md`，正文迁移关系见 `LLM 推理性能优化实战/04_Content_Migration_Plan_v1.0.md`。旧 `02_Course_Outline.md` 仅保留历史记录和跳转说明。
+
+当前章节 Demo 统一从 `LLM 推理性能优化实战/code/README.md` 进入。目录按 `code/chapter01`、`code/chapter02`……命名；尚未实现的章节只登记状态，不保留空目录。
 
 ## Lesson 与 Workshop 的区别
 

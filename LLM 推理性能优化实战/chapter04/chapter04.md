@@ -234,13 +234,12 @@ KV Cache 保存的是每一层历史 token 的 Key 和 Value，不是完整 hidd
 
 ## 4.8 Demo：生成一份合成机制报告
 
-本章 Demo 位于 chapter04/demo，只依赖 Python 标准库。它不会加载真实模型，而是用一组接近 Qwen2.5-0.5B 的教学配置，生成可检查的合成机制报告。
+本章 Demo 位于 code/chapter04，只依赖 Python 标准库。它不会加载真实模型，而是用一组接近 Qwen2.5-0.5B 的教学配置，生成可检查的合成机制报告。
 
-运行：
+从课程根目录运行：
 
 ```bash
-cd chapter04/demo
-python3 mechanics.py \
+python3 code/chapter04/mechanics.py \
   --prompt-tokens 8 \
   --decode-steps 4 \
   --temperature 1.0 \

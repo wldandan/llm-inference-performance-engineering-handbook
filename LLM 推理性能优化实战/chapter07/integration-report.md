@@ -3,7 +3,7 @@
 ## 集成范围
 
 - 正文：`chapter07.md`
-- Demo：`demo/performance_model.py`、3 个合成场景和 8 项测试
+- Demo：`code/chapter07/performance_model.py`、3 个合成场景和 8 项测试
 - 图稿：`figures/fig07-01` 至 `fig07-09`
 - 制作说明：9 份 `figure-note.md`
 - 设计稿：`storyboard.md`

@@ -203,4 +203,4 @@ LLM Engine         vLLM | SGLang | TensorRT-LLM | llama.cpp
 - [x] 逻辑组件和部署单元在至少两张图中明确区分。
 - [x] 成熟系统映射没有形成产品优劣排名。
 - [x] Demo 图与实际 JSON 输入和报告字段一致。
-- [x] 所有图均无旧 Chapter 1/2 编号和旧 `chapter02/demo` 路径。
+- [x] 所有图均无旧 Chapter 1/2 编号，Demo 引用统一使用 `code/chapter03`。

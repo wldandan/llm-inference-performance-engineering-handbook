@@ -189,13 +189,13 @@ first_token
 
 ## 2.9 Demo：从事件日志重建生命周期
 
-本章 Demo 位于 `chapter02/demo/`，只使用 Python 标准库，可在没有 GPU 的机器上运行。样例事件是合成数据，目的是验证状态与时间边界，不代表任何模型、框架或硬件的真实性能。
+本章 Demo 位于 `code/chapter02/`，只使用 Python 标准库，可在没有 GPU 的机器上运行。样例事件是合成数据，目的是验证状态与时间边界，不代表任何模型、框架或硬件的真实性能。
 
 从课程目录运行：
 
 ```bash
-python3 chapter02/demo/lifecycle_trace.py \
-  --input chapter02/demo/sample-events.jsonl
+python3 code/chapter02/lifecycle_trace.py \
+  --input code/chapter02/sample-events.jsonl
 ```
 
 样例包含一条正常完成请求、一条取消请求和一条失败请求。分析器会先按 `request_id` 分组，再验证时间戳和状态跳转，最后输出能够闭合的阶段时间。
@@ -211,7 +211,7 @@ python3 chapter02/demo/lifecycle_trace.py \
 
 正常请求会得到 admission、queue、prefill、decode、response tail 和 end-to-end。取消请求如果没有产生首 token，就不会伪造 prefill 或 decode 时间。这个细节很重要：缺少事件表示“当前证据算不出来”，不是零毫秒。
 
-实验输入、事件规范和测试命令见 [Demo README](demo/README.md)。
+实验输入、事件规范和测试命令见 [Demo README](../code/chapter02/README.md)。
 
 ![生命周期事件如何生成阶段报告](figures/fig02-09_demo_event_report.svg)
 

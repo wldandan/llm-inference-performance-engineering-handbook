@@ -9,7 +9,7 @@ MODULE_PATH = Path(__file__).with_name("mechanics.py")
 
 def load_mechanics():
     if not MODULE_PATH.exists():
-        raise AssertionError("chapter04/demo/mechanics.py must exist")
+        raise AssertionError("code/chapter04/mechanics.py must exist")
     spec = importlib.util.spec_from_file_location("chapter04_mechanics", MODULE_PATH)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None

@@ -6,16 +6,22 @@
 - 算力、显存带宽和 Kernel Launch 的理论时间下界；
 - 当前输入假设下最值得先验证的一类约束。
 
-运行：
+从课程根目录运行：
 
 ```bash
-python3 gpu_model.py
+python3 code/chapter05/gpu_model.py
 ```
 
 保存 JSON 报告：
 
 ```bash
-python3 gpu_model.py --output gpu-constraint-report.json
+python3 code/chapter05/gpu_model.py --output gpu-constraint-report.json
 ```
 
 报告模式固定为 `synthetic_gpu_mental_model`。这些结果来自公式和输入假设，不是 Benchmark，也没有探测真实 GPU。后续要确认瓶颈，仍需用第 8～11 章的方法采集真实 workload、服务指标和 Profiling 证据。
+
+## 测试
+
+```bash
+python3 -m unittest discover -s code/chapter05 -p 'test_*.py'
+```

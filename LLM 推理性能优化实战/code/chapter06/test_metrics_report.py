@@ -9,7 +9,7 @@ MODULE_PATH = Path(__file__).with_name("metrics_report.py")
 
 def load_metrics_report():
     if not MODULE_PATH.exists():
-        raise AssertionError("chapter06/demo/metrics_report.py must exist")
+        raise AssertionError("code/chapter06/metrics_report.py must exist")
     spec = importlib.util.spec_from_file_location("chapter06_metrics_report", MODULE_PATH)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None

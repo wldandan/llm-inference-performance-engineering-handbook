@@ -55,7 +55,7 @@
 ## 验收建议
 
 - 正文恰好引用图 6-1 到图 6-9，文件存在且编号连续。
-- `python3 -m unittest discover -s chapter06/demo -p 'test_*.py' -v` 的 8 项测试全部通过。
+- `python3 -m unittest discover -s code/chapter06 -p 'test_*.py' -v` 的 8 项测试全部通过。
 - 9 张 SVG 可解析，符合 `chapter06-v2` 视觉契约，并各有制作说明。
 - Demo 报告保存 Client Clock、共享 Window、nearest-rank、TPOT 公式、SLO 和成本分母。
 - 章节明确区分 chunk / token、Throughput / Goodput、Resource / Outcome。

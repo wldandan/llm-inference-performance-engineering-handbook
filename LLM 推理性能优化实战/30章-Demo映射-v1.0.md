@@ -2,15 +2,17 @@
 
 > 本表是课程交付清单。状态“已有代码”表示仓库中已有脚本或测试；“待建设”表示需要后续实现或迁移。实际性能数字必须在指定硬件上运行后填写。
 
+代码统一放在 `code/chapterNN/`，完整目录和状态入口见 [课程 Demo 代码](code/README.md)。`workshops/` 保留跨章节或完整优化实验，不与章节 Demo 混放。
+
 | 章节 | Demo / Workshop | 目标指标 | 环境 | 状态 |
 |---|---|---|---|---|
 | Ch1 | 第一个 LLM 服务 | 请求成功率、TTFT、流式首包 | Level 1/2 | 已有代码，单测通过；GPU 实跑待验收 |
 | Ch2 | 请求生命周期追踪 | Queue、Prefill、Decode 时间 | Level 1/2 | 已有代码，9 项单测通过 |
 | Ch3 | 服务架构拆解 | 请求路径、响应路径、组件边界 | Level 1 | 已有代码，13 项单测通过 |
-| Ch4 | Transformer 与 KV Cache 演示 | Cache 正确性、生成时间 | Level 1/2 | 已有代码，可迁移 |
-| Ch5 | GPU 性能心智模型 | GPU Util、带宽、Kernel 时间 | Level 2 | 待建设 |
-| Ch6 | 指标采集客户端 | TTFT、TPOT、TPS、P99 | Level 1/2 | 已有公共工具 |
-| Ch7 | 全局性能模型实验 | Queue / Prefill / Decode 占比 | Level 1/2 | 待建设 |
+| Ch4 | Transformer 与 KV Cache 演示 | Cache 正确性、生成时间 | Level 1/2 | 已有代码，8 项单测通过 |
+| Ch5 | GPU 性能心智模型 | Capacity、Compute、Bandwidth、Launch | Level 1 | 已有代码，9 项单测通过 |
+| Ch6 | 指标采集客户端 | TTFT、TPOT、TPS、P99 | Level 1/2 | 已有代码，8 项单测通过 |
+| Ch7 | 全局性能模型实验 | Critical Path、阶段占比、待采证据 | Level 1 | 已有代码，8 项单测通过 |
 | Ch8 | Benchmark 基线 | 重复性、分位数、吞吐 | Level 2 | 已有公共工具 |
 | Ch9 | Profiling 工具链 | Timeline、GPU、CPU 证据 | Level 2 | 部分已有 |
 | Ch10 | 根因分析案例 | 现象 → 证据 → 根因 | Level 1/2 | 待建设 |

@@ -208,13 +208,12 @@ Occupancy 不是越高越快。足够多的活跃 Warp 可以帮助隐藏等待�
 
 ## 5.8 Demo：生成一份 GPU 约束预算报告
 
-本章 Demo 位于 `chapter05/demo`，只依赖 Python 标准库。它不会调用 `nvidia-smi`，也不会探测当前机器，而是把你提供的模型和硬件假设代入本章公式。
+本章 Demo 位于 `code/chapter05`，只依赖 Python 标准库。它不会调用 `nvidia-smi`，也不会探测当前机器，而是把你提供的模型和硬件假设代入本章公式。
 
-运行默认场景：
+从课程根目录运行默认场景：
 
 ```bash
-cd chapter05/demo
-python3 gpu_model.py
+python3 code/chapter05/gpu_model.py
 ```
 
 报告包含：

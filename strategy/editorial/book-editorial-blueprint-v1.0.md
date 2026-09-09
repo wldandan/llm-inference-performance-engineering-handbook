@@ -140,6 +140,7 @@ Planned → Drafted → Editorial Reviewed → Technically Reviewed
 
 ### 4.1 每章通用 DoD
 
+- 正文写法遵守 [`writing-rules.md`](writing-rules.md)：读者视角、问题驱动、不写编辑决策、不出现分层标签；
 - 标题、章号、Track、核心问题与 v1.0 大纲一致；
 - 开头明确前置章、本章位置、Core 目标和 Advanced 深入方向；
 - 学习目标使用“解释、比较、设计、运行、诊断、验证”等可验收动词；

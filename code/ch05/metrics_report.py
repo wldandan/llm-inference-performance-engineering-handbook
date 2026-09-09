@@ -38,6 +38,24 @@ def request_metrics(record: dict) -> dict[str, object]:
     success = record.get("success")
     if not isinstance(success, bool):
         raise ValueError("success must be a boolean")
+    quality_pass = record.get("quality_pass")
+    if not isinstance(quality_pass, bool):
+        raise ValueError("quality_pass must be a boolean")
+    quality_metric = record.get("quality_metric")
+    evaluator_name = record.get("evaluator_name")
+    evaluator_version = record.get("evaluator_version")
+    if not all(isinstance(value, str) and value for value in (
+        quality_metric,
+        evaluator_name,
+        evaluator_version,
+    )):
+        raise ValueError("quality metric and evaluator fields must be non-empty strings")
+    quality_score = _number(record, "quality_score")
+    quality_threshold = _number(record, "quality_threshold")
+    if not math.isfinite(quality_score) or not math.isfinite(quality_threshold):
+        raise ValueError("quality score and threshold must be finite")
+    if quality_pass != (quality_score >= quality_threshold):
+        raise ValueError("quality_pass must equal quality_score >= quality_threshold")
     prompt_tokens = record.get("prompt_tokens")
     output_tokens = record.get("output_tokens")
     if not isinstance(prompt_tokens, int) or prompt_tokens < 0:
@@ -59,22 +77,7 @@ def request_metrics(record: dict) -> dict[str, object]:
     if token_times and (token_times[0] < start_ms or token_times[-1] > end_ms):
         raise ValueError("token timestamps must stay inside the request window")
 
-    if not success:
-        if token_times or output_tokens:
-            raise ValueError("failed records cannot claim completed output tokens")
-        return {
-            "request_id": request_id,
-            "success": False,
-            "prompt_tokens": prompt_tokens,
-            "output_tokens": 0,
-            "cost_usd": cost_usd,
-            "e2e_ms": end_ms - start_ms,
-            "ttft_ms": None,
-            "itls_ms": [],
-            "tpot_ms": None,
-        }
-
-    if output_tokens <= 0:
+    if success and output_tokens <= 0:
         raise ValueError("successful records require output_tokens > 0")
     if len(token_times) != output_tokens:
         raise ValueError("output_tokens must equal the token_times_ms count")
@@ -82,12 +85,18 @@ def request_metrics(record: dict) -> dict[str, object]:
     itls = [current - previous for previous, current in zip(token_times, token_times[1:])]
     return {
         "request_id": request_id,
-        "success": True,
+        "success": success,
+        "quality_pass": quality_pass,
+        "quality_metric": quality_metric,
+        "quality_score": quality_score,
+        "quality_threshold": quality_threshold,
+        "evaluator_name": evaluator_name,
+        "evaluator_version": evaluator_version,
         "prompt_tokens": prompt_tokens,
         "output_tokens": output_tokens,
         "cost_usd": cost_usd,
         "e2e_ms": end_ms - start_ms,
-        "ttft_ms": token_times[0] - start_ms,
+        "ttft_ms": token_times[0] - start_ms if token_times else None,
         "itls_ms": itls,
         "tpot_ms": sum(itls) / len(itls) if itls else None,
     }
@@ -105,12 +114,49 @@ def _distribution(values: list[float]) -> dict[str, float | int | None]:
     }
 
 
+def build_latency_budget(
+    *,
+    ttft_slo_ms: float,
+    e2e_slo_ms: float,
+    client_gateway_ms: float,
+    queue_ms: float,
+    scheduled_to_first_token_ms: float,
+    decode_streaming_ms: float,
+    response_tail_ms: float,
+) -> dict[str, object]:
+    values = {
+        "client_gateway_ms": client_gateway_ms,
+        "queue_ms": queue_ms,
+        "scheduled_to_first_token_ms": scheduled_to_first_token_ms,
+        "decode_streaming_ms": decode_streaming_ms,
+        "response_tail_ms": response_tail_ms,
+    }
+    if ttft_slo_ms <= 0 or e2e_slo_ms <= 0 or any(value < 0 for value in values.values()):
+        raise ValueError("SLO and latency budget values must be non-negative, with positive SLOs")
+    ttft_allocated = client_gateway_ms + queue_ms + scheduled_to_first_token_ms
+    if ttft_allocated > ttft_slo_ms:
+        raise ValueError("TTFT budget exceeds TTFT SLO")
+    e2e_allocated = ttft_allocated + decode_streaming_ms + response_tail_ms
+    if e2e_allocated > e2e_slo_ms:
+        raise ValueError("E2E budget exceeds E2E SLO")
+    return {
+        "components_ms": values,
+        "ttft_slo_ms": ttft_slo_ms,
+        "ttft_allocated_ms": ttft_allocated,
+        "ttft_unallocated_ms": ttft_slo_ms - ttft_allocated,
+        "e2e_slo_ms": e2e_slo_ms,
+        "e2e_allocated_ms": e2e_allocated,
+        "e2e_unallocated_ms": e2e_slo_ms - e2e_allocated,
+    }
+
+
 def build_report(
     records: list[dict],
     *,
     ttft_slo_ms: float,
     e2e_slo_ms: float,
     workload: dict | None = None,
+    latency_budget: dict[str, object] | None = None,
 ) -> dict[str, object]:
     if not records:
         raise ValueError("records cannot be empty")
@@ -127,18 +173,35 @@ def build_report(
         raise ValueError("measurement window must be positive")
     window_seconds = window_ms / 1000
 
-    output_tokens = sum(int(item["output_tokens"]) for item in successful)
+    successful_output_tokens = sum(int(item["output_tokens"]) for item in successful)
+    partial_output_tokens = sum(int(item["output_tokens"]) for item in failed)
+    observed_output_tokens = successful_output_tokens + partial_output_tokens
     good_requests = sum(
         1
         for item in successful
         if float(item["ttft_ms"]) <= ttft_slo_ms
         and float(item["e2e_ms"]) <= e2e_slo_ms
+        and bool(item["quality_pass"])
     )
     ttfts = [float(item["ttft_ms"]) for item in successful]
     e2es = [float(item["e2e_ms"]) for item in successful]
     tpots = [float(item["tpot_ms"]) for item in successful if item["tpot_ms"] is not None]
     itls = [float(value) for item in successful for value in item["itls_ms"]]
     total_cost = sum(float(item["cost_usd"]) for item in per_request)
+    quality_contracts = {
+        (
+            str(item["quality_metric"]),
+            float(item["quality_threshold"]),
+            str(item["evaluator_name"]),
+            str(item["evaluator_version"]),
+        )
+        for item in per_request
+    }
+    if len(quality_contracts) != 1:
+        raise ValueError("all records must use the same quality evaluation contract")
+    quality_metric, quality_threshold, evaluator_name, evaluator_version = next(
+        iter(quality_contracts)
+    )
 
     return {
         "mode": "synthetic_client_metrics",
@@ -149,9 +212,22 @@ def build_report(
             "window": "min(start_ms) to max(end_ms)",
             "percentile_method": "nearest_rank",
             "tpot_definition": "mean interval between observed output tokens",
+            "failure_output_policy": (
+                "partial tokens are observed work but excluded from successful output rate"
+            ),
+            "goodput_definition": (
+                "success AND quality_pass AND TTFT/E2E within SLO"
+            ),
+            "quality": {
+                "metric": quality_metric,
+                "threshold": quality_threshold,
+                "evaluator_name": evaluator_name,
+                "evaluator_version": evaluator_version,
+            },
             "slo": {"ttft_ms": ttft_slo_ms, "e2e_ms": e2e_slo_ms},
         },
         "workload": workload or {},
+        "latency_budget": latency_budget,
         "requests": {
             "total": len(per_request),
             "successful": len(successful),
@@ -165,16 +241,23 @@ def build_report(
         },
         "throughput": {
             "measurement_window_seconds": window_seconds,
-            "output_tokens": output_tokens,
-            "output_tokens_per_second": output_tokens / window_seconds,
-            "requests_per_second": len(successful) / window_seconds,
+            "output_tokens": successful_output_tokens,
+            "successful_output_tokens": successful_output_tokens,
+            "partial_output_tokens": partial_output_tokens,
+            "observed_output_tokens": observed_output_tokens,
+            "submitted_requests_per_second_over_run_window": len(per_request) / window_seconds,
+            "successful_requests_per_second": len(successful) / window_seconds,
+            "successful_output_tokens_per_second": successful_output_tokens / window_seconds,
+            "observed_output_tokens_per_second": observed_output_tokens / window_seconds,
             "good_requests": good_requests,
             "goodput_requests_per_second": good_requests / window_seconds,
         },
         "cost": {
             "total_cost_usd": total_cost,
             "usd_per_million_output_tokens": (
-                total_cost / output_tokens * 1_000_000 if output_tokens else None
+                total_cost / successful_output_tokens * 1_000_000
+                if successful_output_tokens
+                else None
             ),
             "usd_per_successful_request": (
                 total_cost / len(successful) if successful else None
@@ -205,6 +288,11 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--ttft-slo-ms", type=float, default=250)
     parser.add_argument("--e2e-slo-ms", type=float, default=800)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--client-gateway-budget-ms", type=float, default=40)
+    parser.add_argument("--queue-budget-ms", type=float, default=60)
+    parser.add_argument("--scheduled-to-first-token-budget-ms", type=float, default=130)
+    parser.add_argument("--decode-streaming-budget-ms", type=float, default=500)
+    parser.add_argument("--response-tail-budget-ms", type=float, default=40)
     return parser
 
 
@@ -215,6 +303,15 @@ def main() -> int:
         ttft_slo_ms=args.ttft_slo_ms,
         e2e_slo_ms=args.e2e_slo_ms,
         workload={"name": "sample-interactive-chat", "source": args.input.name},
+        latency_budget=build_latency_budget(
+            ttft_slo_ms=args.ttft_slo_ms,
+            e2e_slo_ms=args.e2e_slo_ms,
+            client_gateway_ms=args.client_gateway_budget_ms,
+            queue_ms=args.queue_budget_ms,
+            scheduled_to_first_token_ms=args.scheduled_to_first_token_budget_ms,
+            decode_streaming_ms=args.decode_streaming_budget_ms,
+            response_tail_ms=args.response_tail_budget_ms,
+        ),
     )
     output = json.dumps(report, ensure_ascii=False, indent=2)
     print(output)

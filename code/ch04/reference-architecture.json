@@ -1,0 +1,23 @@
+{
+  "name": "minimal-single-instance-reference",
+  "profile": "single_instance",
+  "components": [
+    {"id": "client", "role": "client", "deployment_unit": "caller"},
+    {"id": "gateway", "role": "gateway", "deployment_unit": "api-process"},
+    {"id": "scheduler", "role": "scheduler", "deployment_unit": "engine-core"},
+    {"id": "worker", "role": "worker", "deployment_unit": "worker-0"},
+    {"id": "runtime", "role": "runtime", "deployment_unit": "worker-0"},
+    {"id": "accelerator", "role": "accelerator", "deployment_unit": "gpu-0"}
+  ],
+  "flows": [
+    {"from": "client", "to": "gateway", "kind": "request"},
+    {"from": "gateway", "to": "scheduler", "kind": "request"},
+    {"from": "scheduler", "to": "worker", "kind": "request"},
+    {"from": "worker", "to": "runtime", "kind": "request"},
+    {"from": "runtime", "to": "accelerator", "kind": "request"},
+    {"from": "accelerator", "to": "runtime", "kind": "response"},
+    {"from": "runtime", "to": "worker", "kind": "response"},
+    {"from": "worker", "to": "gateway", "kind": "response"},
+    {"from": "gateway", "to": "client", "kind": "response"}
+  ]
+}

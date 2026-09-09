@@ -20,3 +20,8 @@ chapter*/demo/*result*.json
 chapter*/demo/outputs/
 **/chapter*/demo/*result*.json
 **/chapter*/demo/outputs/
+.pytest_cache/
+
+# Reference books (copyrighted, not distributable)
+ref/*.pdf
+ref/book-code

@@ -1,54 +1,45 @@
 # Sprint Status
 
-## 当前 Sprint：v1.0 内容迁移
+## 当前 Sprint：V0.2 Part 1 内容与 Demo 交付
 
-目标：按照 `02_Course_Outline_v1.0.md` 重构 30 章，并为核心实践章节交付可运行 Demo。
+- 状态：正文已定稿，等实验室环境补录真机证据与配套代码
+- 目标：完成 Part 1 五章正文和 `code/ch01`～`code/ch05`，并通过独立 Agent 审阅。
+- 验收入口：`python3 scripts/test_part01_v0_2_delivery.py`
 
-| 工作项 | 状态 | 说明 |
+## 本轮完成（2026-09-09）
+
+**流式证据归属修正。** 原 Ch1 正文已改写为同步调用（`stream=false`），但流式的配套资产和下游引用没有跟着改，导致 Ch3/Ch4/Ch5 引用了一份 Ch1 不可能产出的 chunk 数据。本轮把流式整体迁往 Ch2：
+
+- `code/ch01/demo.py` → `code/ch02/streaming_client.py`
+- `content/ch01/evidence/gx10-run-report.json` → `content/ch02/evidence/gx10-streaming-client-report.json`
+- Ch2 新增 2.9.2，说明这份报告只覆盖客户端观测层，不能关闭本章真机门禁
+- Ch3、Ch4、Ch5 共 11 处引用改指 Ch2
+
+**Ch1 精简。** 原 1.8 课堂案例与 1.9 常见误区合并为 `1.8 课堂案例与常见误区`：三个案例平级化为案例一/二/三，误区从 5 条收到 2 条（删除与 1.3 三层检查表、1.7 失败定位表、案例一重复的三条）作为收尾子节。Ch1 由九节变为八节。同时修正学习目标与 Checklist 的表述问题。
+
+## 待办：需要实验室环境（GX10）
+
+| 项 | 说明 | 阻塞的验收 |
 |---|---|---|
-| 仓库与 v1.0 基线 | 完成 | 本地 Git、课程设计、大纲和 Demo 映射已建立。 |
-| Chapter 1 第一个 LLM 服务 | 完成 | 正文已收紧为启动、调用与客户端观察，Demo、评审和 4 张 v2 插图已对齐。 |
-| Chapter 2 Inference Lifecycle | 完成 | 正文、生命周期分析 Demo、评审和 10 张 v2 插图已对齐。 |
-| Chapter 3 LLM Inference Architecture | 完成 | 正文、架构契约 Demo、评审和 10 张 v2 架构图已对齐。 |
-| Chapter 4 Transformer 推理机制 | 完成 | 正文、合成机制 Demo、评审和 8 张 v2 插图已对齐。 |
-| Chapter 5 GPU 性能心智模型 | 完成 | 四类约束正文、离线预算 Demo、评审和 8 张 v2 插图已对齐。 |
-| Chapter 6 LLM 性能指标 | 完成 | 指标口径正文、离线报告 Demo、评审和 9 张 v2 插图已对齐。 |
-| Chapter 7 Global Performance Model | 完成 | 五层全局模型、Critical Path Demo、RAG / Agent 分解和 9 张 v2 插图已对齐。 |
-| Part 1 全量交付审计 | 完成 | 范围已修正为 Chapter 1–7；119 项测试、58 张图渲染、本地链接和官方引用入口检查通过。 |
-| Demo 统一代码目录 | 完成 | 已实现 Demo 集中到 `code/chapter01`–`code/chapter07`，30 章索引、正文命令和测试路径同步更新。 |
-| Chapter 23 RAG 性能工程 | 待开始 | Core Track 新增重点。 |
-| Chapter 24 Agent 性能工程 | 待开始 | Core Track 新增重点。 |
-| Chapter 30 综合项目 | 待开始 | 需要 Core 与 Advanced 两条交付路线。 |
+| Ch1 同步版 `demo.py` | 流式版已迁往 Ch2，Ch1 需要 `stream=false` 的替代实现 | `test_code_layout_matches_chapter_topics` |
+| Ch2 完整生命周期报告 | 需带 `--enable-per-request-metrics` 启动 vLLM 后运行 `capture_lifecycle.py` | `test_chapter02_has_complete_real_gx10_evidence` |
+| Ch1 同步运行证据 | 原证据已归 Ch2，Ch1 需重新采一份同步响应记录 | 无自动门禁，属证据缺口 |
+| Ch1 四张插图 | 现有 4 张 SVG 仍是旧版流式主题，正文已不引用 | `content/ch01/test_figures.py` |
+| `strategy/reviews/ch01/` 三份记录 | 三份记录仍描述旧版流式 Ch1，引用了已不存在的小节号 | 无自动门禁 |
+| Ch1/Ch2 报告补录 `vllm_version` | 现有 GX10 报告该字段为 `null`，不能用于跨环境比较 | 无自动门禁 |
 
-## 当前质量门禁
+## 已决事项
 
-- v1.0 课程方案：已由用户确认。
-- Chapter 1 单元测试：7 项通过。
-- Chapter 1 结构、图片链接、SVG 解析与 4 张 v2 图原尺寸渲染检查：通过。
-- Chapter 1 插图与章节边界测试：4 项通过。
-- 章节校验器可按已批准 Storyboard 接受不同图片数量：1 项通过。
-- Chapter 2 单元测试：9 项通过。
-- Chapter 2 结构、图片链接、SVG 解析与 10 张 v2 图原尺寸渲染检查：通过。
-- Chapter 2 插图视觉契约测试：2 项通过。
-- Chapter 3 单元测试：13 项通过。
-- Chapter 3 结构、图片链接、SVG 解析与 10 张 v2 图原尺寸渲染检查：通过。
-- Chapter 3 插图视觉契约测试：2 项通过。
-- Chapter 4 合成机制 Demo：8 项通过；真实模型扩展 Workshop：25 项通过。
-- Chapter 4 结构、图片链接、SVG 解析与 8 张 v2 图原尺寸渲染检查：通过。
-- Chapter 4 插图视觉契约测试：3 项通过。
-- Chapter 5 GPU 预算 Demo：9 项通过。
-- Chapter 5 结构、图片链接、SVG 解析与 8 张 v2 图原尺寸渲染检查：通过。
-- Chapter 5 插图视觉契约测试：3 项通过。
-- Chapter 6 离线指标 Demo：8 项通过。
-- Chapter 6 结构、图片链接、SVG 解析与 9 张 v2 图原尺寸渲染检查：通过。
-- Chapter 6 插图视觉契约测试：3 项通过。
-- Chapter 7 全局性能依赖图 Demo：8 项通过。
-- Chapter 7 结构、图片链接、SVG 解析与 9 张 v2 图原尺寸渲染检查：通过。
-- Chapter 7 插图视觉契约测试：3 项通过。
-- Part 1 全量测试：119 项通过（62 项章节 Demo、32 项结构/插图/集中代码目录/校验器、25 项模型机制 Workshop）。
-- Part 1 图稿：58 张 SVG 与 58 份 figure-note；XML 解析和 1280×720 渲染通过。
-- Part 1 本地 Markdown 链接：0 个缺失；主要官方文档入口复核可用。
-- Demo 目录契约：6 项测试覆盖仓库根目录集中代码、章节命名、30 章索引、旧路径清理和根目录运行命令。
-- vLLM 启动命令干运行：通过。
-- 目标 GPU 环境端到端验证：待执行。
-- 远程仓库推送：未执行，遵循当前约定。
+**Ch1 不设独立 Demo 小节。** Ch1 的 demo 就是 1.2–1.6 的 curl 流程，模板要求的五项（实验目的、环境与输入、操作步骤、观察指标、预期现象）已分别落在核心问题、1.1、1.2/1.4、1.5、1.5+1.7。第一章用一条能看懂全貌的裸 curl，比先让读者读 Python 脚本更合适。
+
+因此 `test_each_chapter_has_a_complete_teaching_shape` 里对 Ch1 断言字符串 `Demo` 的那一条不成立，应改为检查别的标志；在改之前它会持续失败。这是测试要跟随内容，不是内容要迁就测试。
+
+## 当前测试状态
+
+- `scripts/test_part01_v0_2_delivery.py`：9 项中 **3 项失败** —— Ch1 `demo.py` 缺失、Ch2 真机报告未生成，以及上述 Ch1 `Demo` 断言
+- `code/ch01`～`ch05`：66 项通过（ch01 2、ch02 27、ch03 8、ch04 15、ch05 14）
+- 插图契约：ch02～ch05 全部通过；**ch01 失败**（正文 0 处图片引用，期望 4 处）
+
+## 已知文档偏差
+
+`strategy/course-design/PART01_DELIVERY_REPORT.md` 的测试计数与 Ch1 描述停留在流式迁移之前，尚未更新。

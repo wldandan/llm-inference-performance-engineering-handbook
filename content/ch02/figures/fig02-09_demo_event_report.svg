@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="fig-title fig-desc" data-figure-system="chapter02-v2" fill="#0F172A">
+  <title id="fig-title">图 2-9 真实 vLLM 请求生成生命周期证据报告</title>
+  <desc id="fig-desc">真实流式请求同时采集客户端事件、响应中的请求级 Metrics 与 Prometheus 前后快照，最后输出标明直接观测、推导和不可得字段的证据分级报告。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0L10 5L0 10Z" fill="#334155"/></marker>
+    <style>text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}.k{font-size:14px;font-weight:700;letter-spacing:2px;fill:#64748B}.t{font-size:32px;font-weight:750}.sub{font-size:16px;fill:#64748B}.card{fill:#FFFFFF;stroke:#CBD5E1;stroke-width:1.8}.focus{fill:#0F172A}.h{font-size:18px;font-weight:750}.hl{font-size:20px;font-weight:750;fill:#FFFFFF}.s{font-size:14px;fill:#64748B}.sl{font-size:14px;fill:#CBD5E1}.flow{fill:none;stroke:#334155;stroke-width:2.5;marker-end:url(#arrow)}.take{fill:#0F172A}.tl{font-size:14px;font-weight:700;letter-spacing:1px;fill:#CBD5E1}.tv{font-size:19px;font-weight:650;fill:#FFFFFF}</style>
+  </defs>
+  <rect width="1280" height="720" fill="#F8FAFC"/>
+  <text class="k" x="56" y="46">REAL EVIDENCE · 09</text><text class="t" x="56" y="84">Demo：一次真实请求，三类证据</text><text class="sub" x="56" y="114">采集器不补造服务端时间；拿不到的字段明确标成 unavailable</text>
+
+  <g transform="translate(56 214)"><rect class="card" width="220" height="240" rx="20"/><text class="h" x="24" y="48">真实 vLLM 请求</text><text class="s" x="24" y="90">GPU 上运行模型</text><text class="s" x="24" y="122">OpenAI-compatible SSE</text><text class="s" x="24" y="154">1 request · n=1</text><text class="s" x="24" y="186">携带 request ID</text></g>
+  <path class="flow" d="M276 334H334"/>
+  <g transform="translate(340 174)"><rect class="focus" width="350" height="320" rx="22"/><text class="hl" x="28" y="52">capture_lifecycle.py</text><text class="sl" x="28" y="100">① 客户端流式事件</text><text class="sl" x="28" y="140">② 请求级 Metrics</text><text class="sl" x="28" y="180">Queue · TTFT · Generation</text><text class="sl" x="28" y="232">③ Prometheus 增量</text><text class="sl" x="28" y="272">请求前快照 → 请求后快照</text></g>
+  <path class="flow" d="M690 334H748"/>
+  <g transform="translate(754 194)"><rect class="card" width="470" height="280" rx="22"/><text class="h" x="28" y="50">证据分级报告</text><text class="s" x="28" y="96">direct_client：客户端事件与 usage</text><text class="s" x="28" y="132">direct_per_request：请求级服务端时长</text><text class="s" x="28" y="168">direct_aggregate：Prometheus 增量</text><text class="s" x="28" y="204">derived / inferred / unavailable</text><text class="s" x="28" y="244">acceptance.status：complete 或 incomplete</text></g>
+
+  <rect class="take" x="56" y="642" width="1168" height="54" rx="14"/><text class="tl" x="80" y="675">关键结论</text><text class="tv" x="184" y="676">真实请求是主 Demo；离线 JSONL 状态机只负责验证边界和异常路径。</text>
+</svg>

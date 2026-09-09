@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="fig-title fig-desc" data-figure-system="chapter04-v2" fill="#0F172A">
+  <title id="fig-title">图 4-2 Client 与 Gateway 边界</title>
+  <desc id="fig-desc">左右对照 Client 和 Gateway 的职责，中间用双向请求与流式响应箭头标出协议边界。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0L10 5L0 10Z" fill="#334155"/></marker>
+    <style>
+      text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+      .kicker{font-size:14px;font-weight:700;letter-spacing:2px;fill:#64748B}.title{font-size:32px;font-weight:750}.subtitle{font-size:16px;fill:#64748B}
+      .panel{fill:#FFFFFF;stroke:#CBD5E1;stroke-width:1.8}.panel-head{fill:#0F172A}.head-role{font-size:22px;font-weight:750;fill:#FFFFFF}.head-cn{font-size:14px;fill:#CBD5E1}
+      .item{fill:#F8FAFC;stroke:#CBD5E1;stroke-width:1.4}.item-title{font-size:17px;font-weight:700}.item-note{font-size:14px;fill:#64748B}
+      .boundary{stroke:#94A3B8;stroke-width:2;stroke-dasharray:7 7}.boundary-label{font-size:14px;font-weight:700;fill:#64748B;letter-spacing:1px}
+      .flow{fill:none;stroke:#334155;stroke-width:2.5;marker-end:url(#arrow)}.flow-label{font-size:14px;font-weight:700;fill:#475569}.badge{fill:#E2E8F0}.badge-text{font-size:14px;font-weight:700;fill:#475569}
+      .take-bg{fill:#0F172A}.take-label{font-size:14px;font-weight:700;letter-spacing:1px;fill:#CBD5E1}.take{font-size:19px;font-weight:650;fill:#FFFFFF}
+    </style>
+  </defs>
+  <rect width="1280" height="720" fill="#F8FAFC"/>
+  <text class="kicker" x="56" y="46">RESPONSIBILITY BOUNDARY · 02</text>
+  <text class="title" x="56" y="84">Client 与 Gateway：业务语义进入模型服务的边界</text>
+  <text class="subtitle" x="56" y="114">左边管理一次业务调用，右边管理一次服务入口请求</text>
+
+  <rect class="panel" x="64" y="160" width="488" height="426" rx="20"/>
+  <path class="panel-head" d="M84 160H532Q552 160 552 180V228H64V180Q64 160 84 160Z"/>
+  <text class="head-role" x="92" y="193" fill="#FFFFFF">Client</text><text class="head-cn" x="92" y="217" fill="#CBD5E1">调用方 · business call owner</text>
+  <rect class="badge" x="409" y="180" width="111" height="28" rx="14"/><text class="badge-text" x="465" y="199" text-anchor="middle">用户侧观测</text>
+  <g transform="translate(92 258)"><rect class="item" width="190" height="106" rx="14"/><text class="item-title" x="18" y="34">业务上下文</text><text class="item-note" x="18" y="64">任务、会话、用户意图</text><text class="item-note" x="18" y="87">Business Context</text></g>
+  <g transform="translate(322 258)"><rect class="item" width="190" height="106" rx="14"/><text class="item-title" x="18" y="34">超时与重试</text><text class="item-note" x="18" y="64">截止时间、幂等策略</text><text class="item-note" x="18" y="87">Timeout / Retry</text></g>
+  <g transform="translate(92 394)"><rect class="item" width="190" height="106" rx="14"/><text class="item-title" x="18" y="34">取消与消费</text><text class="item-note" x="18" y="64">停止生成、消费分片</text><text class="item-note" x="18" y="87">Cancel / Consume</text></g>
+  <g transform="translate(322 394)"><rect class="item" width="190" height="106" rx="14"/><text class="item-title" x="18" y="34">追踪与体验</text><text class="item-note" x="18" y="64">Trace ID、首包时间</text><text class="item-note" x="18" y="87">Trace / Observe</text></g>
+
+  <line class="boundary" x1="640" y1="148" x2="640" y2="588"/><rect x="571" y="151" width="138" height="30" rx="15" fill="#F8FAFC"/><text class="boundary-label" x="640" y="171" text-anchor="middle">协议边界</text>
+  <path class="flow" d="M552 294H708"/><path d="M708 294l-11 -7v14z" fill="#334155"/><text class="flow-label" x="630" y="278" text-anchor="middle">请求 + Trace ID</text>
+  <path class="flow" d="M728 454H572"/><path d="M572 454l11 -7v14z" fill="#334155"/><text class="flow-label" x="650" y="438" text-anchor="middle">流式分片 + 状态</text>
+
+  <rect class="panel" x="728" y="160" width="488" height="426" rx="20"/>
+  <path class="panel-head" d="M748 160H1196Q1216 160 1216 180V228H728V180Q728 160 748 160Z"/>
+  <text class="head-role" x="756" y="193" fill="#FFFFFF">Gateway</text><text class="head-cn" x="756" y="217" fill="#CBD5E1">服务入口 · protocol boundary owner</text>
+  <rect class="badge" x="1071" y="180" width="113" height="28" rx="14"/><text class="badge-text" x="1128" y="199" text-anchor="middle">服务端入口</text>
+  <g transform="translate(768 258)"><rect class="item" width="190" height="106" rx="14"/><text class="item-title" x="18" y="34">协议与鉴权</text><text class="item-note" x="18" y="64">HTTP / gRPC、Auth</text><text class="item-note" x="18" y="87">Protocol / Auth</text></g>
+  <g transform="translate(998 258)"><rect class="item" width="190" height="106" rx="14"/><text class="item-title" x="18" y="34">配额与限流</text><text class="item-note" x="18" y="64">Quota、Rate Limit</text><text class="item-note" x="18" y="87">入口流量治理</text></g>
+  <g transform="translate(768 394)"><rect class="item" width="190" height="106" rx="14"/><text class="item-title" x="18" y="34">校验与规范化</text><text class="item-note" x="18" y="64">Validate / Normalize</text><text class="item-note" x="18" y="87">形成内部请求</text></g>
+  <g transform="translate(998 394)"><rect class="item" width="190" height="106" rx="14"/><text class="item-title" x="18" y="34">流式响应</text><text class="item-note" x="18" y="64">编码分片、传播错误</text><text class="item-note" x="18" y="87">Streaming Response</text></g>
+
+  <rect class="take-bg" x="56" y="642" width="1168" height="54" rx="14"/>
+  <text class="take-label" x="80" y="675" fill="#CBD5E1">关键结论</text><text class="take" x="184" y="676" fill="#FFFFFF">Gateway 管入口契约，不决定下一轮 token batch。</text>
+</svg>

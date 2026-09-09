@@ -1,0 +1,62 @@
+{
+  "validation_environment": {
+    "host": "gx10",
+    "source_directory": "/home/admin/code/llm-inference-performance-engineering/code/ch01",
+    "python_version": "3.12.3",
+    "gpu": "NVIDIA GB10",
+    "driver_version": "580.159.03",
+    "vllm_version": null
+  },
+  "started_at": "2026-09-08T03:08:14+0000",
+  "base_url": "http://127.0.0.1:8000/v1",
+  "model": "Qwen/Qwen2.5-0.5B-Instruct",
+  "prompt": "请用三句话介绍 LLM 在线推理。",
+  "prompt_repeat": 1,
+  "max_tokens": 256,
+  "concurrency": 1,
+  "summary": {
+    "requests": 1,
+    "successes": 1,
+    "failures": 0,
+    "time_to_first_content_chunk_avg_ms": 29.64,
+    "time_to_first_content_chunk_p95_ms": 29.64,
+    "chunk_interval_avg_ms": 9.15,
+    "total_latency_avg_ms": 2345.26,
+    "failures_detail": []
+  },
+  "gpu_before": {
+    "gpus": [
+      {
+        "name": "NVIDIA GB10",
+        "gpu_util_pct": 0.0,
+        "memory_used_mb": null,
+        "memory_total_mb": null
+      }
+    ]
+  },
+  "gpu_after": {
+    "gpus": [
+      {
+        "name": "NVIDIA GB10",
+        "gpu_util_pct": 96.0,
+        "memory_used_mb": null,
+        "memory_total_mb": null
+      }
+    ]
+  },
+  "results": [
+    {
+      "success": true,
+      "prompt_tokens": 30,
+      "output_tokens": 256,
+      "stream_chunks": 254,
+      "output_characters": 752,
+      "time_to_first_content_chunk_ms": 29.64,
+      "chunk_interval_avg_ms": 9.15,
+      "chunk_interval_p50_ms": 9.05,
+      "chunk_interval_p95_ms": 9.72,
+      "total_latency_ms": 2345.26,
+      "request_output_rate_tokens_per_second": 109.16
+    }
+  ]
+}

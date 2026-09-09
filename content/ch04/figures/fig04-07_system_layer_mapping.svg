@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="fig-title fig-desc" data-figure-system="chapter04-v2" fill="#0F172A">
+  <title id="fig-title">图 4-7 成熟系统的架构层级映射</title>
+  <desc id="fig-desc">把常见系统放入 Serving Platform、Inference Server 和 LLM Engine 三个互补层级，并提示覆盖范围并非排他。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0L10 5L0 10Z" fill="#334155"/></marker>
+    <style>
+      text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+      .kicker{font-size:14px;font-weight:700;letter-spacing:2px;fill:#64748B}.title{font-size:32px;font-weight:750}.subtitle{font-size:16px;fill:#64748B}
+      .layer{fill:#FFFFFF;stroke:#CBD5E1;stroke-width:1.8}.layer-head{fill:#0F172A}.layer-name{font-size:20px;font-weight:750;fill:#FFFFFF}.layer-cn{font-size:14px;fill:#CBD5E1}.purpose{font-size:15px;font-weight:700;fill:#475569}
+      .system{fill:#F1F5F9;stroke:#CBD5E1;stroke-width:1.3}.system-strong{fill:#FFFFFF;stroke:#64748B;stroke-width:1.6}.system-name{font-size:17px;font-weight:700}.system-note{font-size:14px;fill:#64748B}
+      .spine{fill:none;stroke:#334155;stroke-width:2.4;marker-end:url(#arrow)}.spine-label{font-size:14px;font-weight:700;fill:#475569}.scope{fill:#E2E8F0}.scope-text{font-size:14px;font-weight:700;fill:#475569}
+      .take-bg{fill:#0F172A}.take-label{font-size:14px;font-weight:700;letter-spacing:1px;fill:#CBD5E1}.take{font-size:19px;font-weight:650;fill:#FFFFFF}
+    </style>
+  </defs>
+  <rect width="1280" height="720" fill="#F8FAFC"/>
+  <text class="kicker" x="56" y="46">SYSTEM LANDSCAPE · 07</text>
+  <text class="title" x="56" y="84">成熟系统覆盖不同架构层级，不是同一张排行榜</text>
+  <text class="subtitle" x="56" y="114">先判断主要覆盖层，再讨论组合方式；同一产品也可能跨越多个层级</text>
+  <rect class="scope" x="1006" y="54" width="218" height="34" rx="17"/><text class="scope-text" x="1115" y="76" text-anchor="middle">覆盖重心 · 非排他边界</text>
+
+  <path class="spine" d="M98 556V184"/><path d="M98 184l-7 13h14z" fill="#334155"/><text class="spine-label" x="78" y="380" text-anchor="middle" transform="rotate(-90 78 380)">由执行向治理逐层组合</text>
+
+  <g transform="translate(142 154)">
+    <rect class="layer" width="1082" height="126" rx="18"/><path class="layer-head" d="M18 0H268V126H18Q0 126 0 108V18Q0 0 18 0Z"/>
+    <text class="layer-name" x="28" y="46" fill="#FFFFFF">Serving Platform</text><text class="layer-cn" x="28" y="72" fill="#CBD5E1">服务平台层</text><text class="purpose" x="28" y="103" fill="#CBD5E1">编排模型、版本与副本</text>
+    <rect class="system" x="304" y="28" width="210" height="70" rx="14"/><text class="system-name" x="409" y="58" text-anchor="middle">Ray Serve</text><text class="system-note" x="409" y="82" text-anchor="middle">服务编排</text>
+    <rect class="system" x="536" y="28" width="210" height="70" rx="14"/><text class="system-name" x="641" y="58" text-anchor="middle">KServe</text><text class="system-note" x="641" y="82" text-anchor="middle">模型服务平台</text>
+    <rect class="system-strong" x="768" y="28" width="270" height="70" rx="14"/><text class="system-name" x="903" y="58" text-anchor="middle">NVIDIA Dynamo</text><text class="system-note" x="903" y="82" text-anchor="middle">控制面与分布式服务</text>
+  </g>
+
+  <g transform="translate(142 308)">
+    <rect class="layer" width="1082" height="126" rx="18"/><path class="layer-head" d="M18 0H268V126H18Q0 126 0 108V18Q0 0 18 0Z"/>
+    <text class="layer-name" x="28" y="46" fill="#FFFFFF">Inference Server</text><text class="layer-cn" x="28" y="72" fill="#CBD5E1">推理服务器层</text><text class="purpose" x="28" y="103" fill="#CBD5E1">承接协议与模型请求</text>
+    <rect class="system" x="374" y="28" width="250" height="70" rx="14"/><text class="system-name" x="499" y="58" text-anchor="middle">NVIDIA Triton</text><text class="system-note" x="499" y="82" text-anchor="middle">请求调度与后端管理</text>
+    <rect class="system-strong" x="654" y="28" width="310" height="70" rx="14"/><text class="system-name" x="809" y="58" text-anchor="middle">Dynamo Frontend</text><text class="system-note" x="809" y="82" text-anchor="middle">协议入口与请求路由</text>
+  </g>
+
+  <g transform="translate(142 462)">
+    <rect class="layer" width="1082" height="126" rx="18"/><path class="layer-head" d="M18 0H268V126H18Q0 126 0 108V18Q0 0 18 0Z"/>
+    <text class="layer-name" x="28" y="46" fill="#FFFFFF">LLM Engine</text><text class="layer-cn" x="28" y="72" fill="#CBD5E1">大模型推理引擎</text><text class="purpose" x="28" y="103" fill="#CBD5E1">调度序列并执行模型</text>
+    <rect class="system" x="294" y="28" width="156" height="70" rx="14"/><text class="system-name" x="372" y="70" text-anchor="middle">vLLM</text>
+    <rect class="system" x="468" y="28" width="156" height="70" rx="14"/><text class="system-name" x="546" y="70" text-anchor="middle">SGLang</text>
+    <rect class="system" x="642" y="28" width="222" height="70" rx="14"/><text class="system-name" x="753" y="70" text-anchor="middle">TensorRT-LLM</text>
+    <rect class="system" x="882" y="28" width="156" height="70" rx="14"/><text class="system-name" x="960" y="70" text-anchor="middle">llama.cpp</text>
+  </g>
+
+  <rect class="take-bg" x="56" y="642" width="1168" height="54" rx="14"/>
+  <text class="take-label" x="80" y="675" fill="#CBD5E1">关键结论</text><text class="take" x="184" y="676" fill="#FFFFFF">比较系统前，先确认它们是否处于同一抽象层。</text>
+</svg>

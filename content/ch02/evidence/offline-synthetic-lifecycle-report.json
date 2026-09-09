@@ -1,0 +1,54 @@
+{
+  "validation_environment": {
+    "host": "gx10",
+    "source_directory": "/home/admin/code/llm-inference-performance-engineering/code/ch02",
+    "python_version": "3.12.3",
+    "input": "sample-events.jsonl",
+    "input_mode": "synthetic_lifecycle_events",
+    "gpu_used": false
+  },
+  "summary": {
+    "requests": 3,
+    "finished": 1,
+    "cancelled": 1,
+    "failed": 1
+  },
+  "requests": [
+    {
+      "request_id": "req-ok",
+      "terminal_state": "finished",
+      "durations_ms": {
+        "admission": 2,
+        "queue": 10,
+        "prefill": 30,
+        "decode": 50,
+        "response_tail": 5,
+        "end_to_end": 97
+      }
+    },
+    {
+      "request_id": "req-cancel",
+      "terminal_state": "cancelled",
+      "durations_ms": {
+        "admission": 2,
+        "queue": 18,
+        "prefill": null,
+        "decode": null,
+        "response_tail": null,
+        "end_to_end": 28
+      }
+    },
+    {
+      "request_id": "req-failed",
+      "terminal_state": "failed",
+      "durations_ms": {
+        "admission": 2,
+        "queue": 3,
+        "prefill": 25,
+        "decode": null,
+        "response_tail": null,
+        "end_to_end": 50
+      }
+    }
+  ]
+}

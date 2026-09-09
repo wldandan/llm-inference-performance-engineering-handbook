@@ -80,7 +80,7 @@ curl http://127.0.0.1:8000/v1/models
 从 Git 仓库根目录运行：
 
 ```bash
-python3 code/ch01/demo.py \
+python3 code/ch01/streaming_client.py \
   --base-url http://127.0.0.1:8000/v1 \
   --model Qwen/Qwen2.5-0.5B-Instruct \
   --prompt "请用三句话介绍 LLM 在线推理。" \
@@ -105,7 +105,7 @@ python3 code/ch01/demo.py \
 
 ## 5. GX10 验收记录
 
-课程已在 GX10 的 `/home/admin/code/llm-inference-performance-engineering/code/ch01` 完成真实运行，使用 NVIDIA GB10 和 `Qwen/Qwen2.5-0.5B-Instruct`。脱敏报告保存在 [GX10 运行报告](../../content/ch01/evidence/gx10-run-report.json)：1 次请求成功，收到 256 个输出 token，SSE 正常结束。旧记录中的 `vllm_version` 缺失，因此它可以证明链路跑通，但还不是完整的可复现实验记录；下次 GX10 复跑必须补录版本。
+课程已在 GX10 的 `/home/admin/code/llm-inference-performance-engineering/code/ch01` 完成真实运行，使用 NVIDIA GB10 和 `Qwen/Qwen2.5-0.5B-Instruct`。脱敏报告保存在 [GX10 客户端流式报告](../../content/ch01/evidence/gx10-streaming-client-report.json)：1 次请求成功，收到 256 个输出 token，SSE 正常结束。旧记录中的 `vllm_version` 缺失，因此它可以证明链路跑通，但还不是完整的可复现实验记录；下次 GX10 复跑必须补录版本。
 
 这份报告用于验收端到端链路，不是 Benchmark。它只有一个请求、一个并发，没有 Warmup、重复实验或负载分布控制。
 
